@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 import base64
@@ -7,11 +6,16 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 
 import requests
 
+
+# ============================================================
+# Configuration
+# ============================================================
 
 SOURCE_URL = "https://www.vpngate.net/api/iphone/"
 
@@ -19,21 +23,29 @@ CSV_OUTPUT = "data/servers.csv"
 JSON_OUTPUT = "data/servers.json"
 PROFILE_DIR = "data/profiles"
 
-USERNAME = "vpn"
-PASSWORD = "vpn"
+VPN_USERNAME = "vpn"
+VPN_PASSWORD = "vpn"
 
 REQUEST_TIMEOUT = 30
 
+# Maximum number of servers published.
 MAX_SERVERS = 300
 
+# Minimum acceptable server speed.
 MIN_SPEED_MBPS = 1.0
+
+# Maximum acceptable ping.
 MAX_PING_MS = 1500.0
 
 USER_AGENT = (
-    "THOCK-VPNGate-Updater/1.0 "
+    "THOCK-VPNGate-Updater/2.0 "
     "(GitHub Actions)"
 )
 
+
+# ============================================================
+# Utility
+# ============================================================
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
@@ -46,7 +58,7 @@ def clean(value):
     return str(value).strip()
 
 
-def number(value):
+def to_float(value):
     try:
         value = clean(value)
 
@@ -61,7 +73,7 @@ def number(value):
         return 0.0
 
 
-def integer(value):
+def to_int(value):
     try:
         value = clean(value)
 
@@ -82,8 +94,12 @@ def normalize_header(value):
     return clean(value).lstrip("#").strip()
 
 
+# ============================================================
+# VPN Gate API
+# ============================================================
+
 def download_source():
-    print("Downloading VPN Gate data...")
+    print("Downloading VPN Gate server list...")
 
     response = requests.get(
         SOURCE_URL,
@@ -102,7 +118,7 @@ def download_source():
 
     if "#HostName" not in text:
         raise RuntimeError(
-            "VPN Gate response does not contain expected CSV data"
+            "VPN Gate API returned an unexpected response."
         )
 
     return text
@@ -121,7 +137,7 @@ def parse_source(text):
 
     if header_index is None:
         raise RuntimeError(
-            "VPN Gate CSV header not found"
+            "VPN Gate CSV header was not found."
         )
 
     csv_text = "\n".join(
@@ -149,6 +165,10 @@ def parse_source(text):
     return rows
 
 
+# ============================================================
+# OpenVPN Profile
+# ============================================================
+
 def decode_profile(row):
     encoded = clean(
         row.get(
@@ -160,9 +180,9 @@ def decode_profile(row):
         return None
 
     try:
-
         decoded = base64.b64decode(
-            encoded
+            encoded,
+            validate=False,
         )
 
         profile = decoded.decode(
@@ -176,7 +196,7 @@ def decode_profile(row):
         if "remote " not in profile:
             return None
 
-        return profile
+        return profile.strip() + "\n"
 
     except Exception as exc:
 
@@ -232,13 +252,15 @@ def validate_profile(profile):
         "proto ",
     ]
 
-    for item in required:
+    return all(
+        item in profile
+        for item in required
+    )
 
-        if item not in profile:
-            return False
 
-    return True
-
+# ============================================================
+# File names
+# ============================================================
 
 def safe_filename(value):
     value = clean(value)
@@ -249,39 +271,62 @@ def safe_filename(value):
         value,
     )
 
+    value = value.strip("._-")
+
+    if not value:
+        value = "server"
+
     return value[:100]
 
 
+# ============================================================
+# Server score
+# ============================================================
+
 def calculate_score(
-    speed,
-    ping,
-    uptime,
+    speed_mbps,
+    ping_ms,
+    uptime_days,
     sessions,
 ):
+    """
+    Score range: approximately 0-1000.
+
+    Weight:
+      Speed    = 45%
+      Ping     = 30%
+      Uptime   = 15%
+      Load     = 10%
+    """
+
+    # 1000 Mbps or higher gets full speed score.
     speed_score = min(
-        speed / 1000.0,
+        speed_mbps / 1000.0,
         1.0,
     )
 
-    if ping <= 0:
-
+    # Lower ping is better.
+    if ping_ms <= 0:
         ping_score = 0.5
-
     else:
-
         ping_score = max(
             0.0,
             1.0 - (
-                min(ping, 1500.0)
-                / 1500.0
+                min(
+                    ping_ms,
+                    MAX_PING_MS,
+                )
+                / MAX_PING_MS
             ),
         )
 
+    # 30 days or more gets full uptime score.
     uptime_score = min(
-        uptime / 720.0,
+        uptime_days / 30.0,
         1.0,
     )
 
+    # Lower active sessions = better.
     load_score = 1.0 / (
         1.0 + (
             sessions / 100.0
@@ -301,7 +346,18 @@ def calculate_score(
     )
 
 
+# ============================================================
+# Server processing
+# ============================================================
+
 def process_servers(rows):
+
+    # Remove old profiles so dead/removed servers do not remain.
+    if os.path.exists(PROFILE_DIR):
+        shutil.rmtree(
+            PROFILE_DIR
+        )
+
     os.makedirs(
         PROFILE_DIR,
         exist_ok=True,
@@ -326,34 +382,80 @@ def process_servers(rows):
         if not hostname and not ip:
             continue
 
-        speed = number(
+        # ----------------------------------------------------
+        # VPN Gate units
+        #
+        # Speed  = bits per second
+        # Uptime = seconds
+        # ----------------------------------------------------
+
+        speed_bps = to_float(
             row.get("Speed")
         )
 
-        ping = number(
+        speed_mbps = (
+            speed_bps / 1_000_000.0
+        )
+
+        ping_ms = to_float(
             row.get("Ping")
         )
 
-        if speed < MIN_SPEED_MBPS:
+        uptime_seconds = to_float(
+            row.get("Uptime")
+        )
+
+        uptime_days = (
+            uptime_seconds / 86400.0
+        )
+
+        # ----------------------------------------------------
+        # Basic quality filter
+        # ----------------------------------------------------
+
+        if speed_mbps < MIN_SPEED_MBPS:
             continue
 
-        if ping > MAX_PING_MS:
+        if ping_ms <= 0:
             continue
 
-        profile = decode_profile(row)
-
-        if not validate_profile(profile):
+        if ping_ms > MAX_PING_MS:
             continue
 
-        remote = get_remote(profile)
+        # ----------------------------------------------------
+        # OpenVPN profile
+        # ----------------------------------------------------
+
+        profile = decode_profile(
+            row
+        )
+
+        if not validate_profile(
+            profile
+        ):
+            continue
+
+        remote = get_remote(
+            profile
+        )
 
         if not remote:
             continue
 
-        protocol = get_protocol(profile)
+        protocol = get_protocol(
+            profile
+        )
 
         if not protocol:
             continue
+
+        # Normalize tcp-client to tcp.
+        if protocol == "tcp-client":
+            protocol = "tcp"
+
+        # ----------------------------------------------------
+        # Server identity
+        # ----------------------------------------------------
 
         server_id = (
             f"{ip or hostname}:"
@@ -364,30 +466,46 @@ def process_servers(rows):
         if server_id in seen:
             continue
 
-        seen.add(server_id)
+        seen.add(
+            server_id
+        )
 
-        sessions = integer(
+        # ----------------------------------------------------
+        # Sessions
+        # ----------------------------------------------------
+
+        sessions = to_int(
             row.get(
                 "NumVpnSessions"
             )
         )
 
-        uptime = number(
-            row.get("Uptime")
-        )
+        # ----------------------------------------------------
+        # Score
+        # ----------------------------------------------------
 
         score = calculate_score(
-            speed,
-            ping,
-            uptime,
-            sessions,
+            speed_mbps=speed_mbps,
+            ping_ms=ping_ms,
+            uptime_days=uptime_days,
+            sessions=sessions,
         )
+
+        # ----------------------------------------------------
+        # Profile filename
+        # ----------------------------------------------------
 
         filename = (
             safe_filename(
                 hostname
                 or ip
             )
+            + "_"
+            + str(
+                remote["port"]
+            )
+            + "_"
+            + protocol
             + ".ovpn"
         )
 
@@ -402,69 +520,117 @@ def process_servers(rows):
             encoding="utf-8",
         ) as file:
 
-            file.write(profile)
+            file.write(
+                profile
+            )
+
+        # ----------------------------------------------------
+        # Country
+        #
+        # VPN Gate API uses CountryLong / CountryShort.
+        # ----------------------------------------------------
+
+        country_short = clean(
+            row.get(
+                "CountryShort"
+            )
+        )
+
+        country_long = clean(
+            row.get(
+                "CountryLong"
+            )
+        )
+
+        # ----------------------------------------------------
+        # Server object
+        # ----------------------------------------------------
 
         server = {
             "id": server_id,
-            "country": clean(
-                row.get(
-                    "CountryShort"
-                )
-            ),
-            "country_name": clean(
-                row.get(
-                    "Country"
-                )
-            ),
+
+            "country": country_short,
+
+            "country_name": country_long,
+
             "hostname": hostname,
+
             "ip": ip,
+
             "protocol": protocol,
+
             "port": remote["port"],
-            "tcp_port": integer(
+
+            "tcp_port": to_int(
                 row.get("TcpPort")
             ),
-            "udp_port": integer(
+
+            "udp_port": to_int(
                 row.get("UdpPort")
             ),
+
             "speed_mbps": round(
-                speed,
+                speed_mbps,
                 2,
             ),
+
             "ping_ms": round(
-                ping,
+                ping_ms,
                 2,
             ),
+
             "sessions": sessions,
+
             "uptime_days": round(
-                uptime,
+                uptime_days,
                 2,
             ),
+
             "score": score,
-            "username": USERNAME,
-            "password": PASSWORD,
+
+            "username": VPN_USERNAME,
+
+            "password": VPN_PASSWORD,
+
             "profile": (
                 "profiles/"
                 + filename
             ),
+
             "last_updated": generated_at,
         }
 
-        servers.append(server)
+        servers.append(
+            server
+        )
+
+    # --------------------------------------------------------
+    # Best servers first
+    # --------------------------------------------------------
 
     servers.sort(
         key=lambda item: (
             -item["score"],
-            item["ping_ms"]
-            if item["ping_ms"] > 0
-            else 999999,
+
+            item["ping_ms"],
+
             -item["speed_mbps"],
+
+            item["sessions"],
         )
     )
 
-    return servers[:MAX_SERVERS]
+    return servers[
+        :MAX_SERVERS
+    ]
 
+
+# ============================================================
+# CSV
+# ============================================================
 
 def write_csv(servers):
+
     os.makedirs(
         os.path.dirname(
             CSV_OUTPUT
@@ -512,7 +678,12 @@ def write_csv(servers):
         )
 
 
+# ============================================================
+# JSON
+# ============================================================
+
 def write_json(servers):
+
     os.makedirs(
         os.path.dirname(
             JSON_OUTPUT
@@ -521,10 +692,16 @@ def write_json(servers):
     )
 
     payload = {
-        "version": 1,
+        "version": 2,
+
         "generated_at": utc_now(),
+
         "source": "VPN Gate",
-        "count": len(servers),
+
+        "count": len(
+            servers
+        ),
+
         "servers": servers,
     }
 
@@ -541,18 +718,27 @@ def write_json(servers):
             ensure_ascii=False,
         )
 
+        file.write(
+            "\n"
+        )
+
+
+# ============================================================
+# Main
+# ============================================================
 
 def main():
+
     print(
-        "================================"
+        "========================================"
     )
 
     print(
-        "THOCK VPN Gate Updater"
+        "THOCK VPN Gate Updater v2"
     )
 
     print(
-        "================================"
+        "========================================"
     )
 
     source = download_source()
@@ -576,7 +762,7 @@ def main():
     if not servers:
 
         raise RuntimeError(
-            "No valid OpenVPN servers found"
+            "No valid OpenVPN servers found."
         )
 
     write_csv(
