@@ -11,56 +11,41 @@ import shutil
 import sys
 import socket
 import time
-import threading
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
+import urllib3
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ============================================================
 # Configuration
 # ============================================================
 
-SOURCE_URL = "https://www.vpngate.net/api/iphone/"
+VPNGATE_URLS = [
+    "https://www.vpngate.net/api/iphone/",
+    "http://www.vpngate.net/api/iphone/",
+]
+
+VPNBOOK_NODES = [
+    {"host": "us1.vpnbook.com", "ip": "198.27.70.18", "country": "US", "country_name": "United States"},
+    {"host": "us2.vpnbook.com", "ip": "198.27.70.19", "country": "US", "country_name": "United States"},
+    {"host": "ca199.vpnbook.com", "ip": "192.99.11.199", "country": "CA", "country_name": "Canada"},
+    {"host": "fr1.vpnbook.com", "ip": "51.254.120.1", "country": "FR", "country_name": "France"},
+    {"host": "de4.vpnbook.com", "ip": "178.33.109.118", "country": "DE", "country_name": "Germany"},
+    {"host": "uk1.vpnbook.com", "ip": "151.80.32.223", "country": "GB", "country_name": "United Kingdom"},
+]
 
 CSV_OUTPUT = "data/servers.csv"
 JSON_OUTPUT = "data/servers.json"
 PROFILE_DIR = "data/profiles"
 
-VPN_USERNAME = "vpn"
-VPN_PASSWORD = "vpn"
+REQUEST_TIMEOUT = 15
+TEST_TIMEOUT = 2.5  # Realtime Socket Test Timeout
+MAX_WORKERS = 30    # Concurrent Threads for fast testing
 
-REQUEST_TIMEOUT = 30
-
-# Maximum number of servers published.
-MAX_SERVERS = 300
-
-# Minimum acceptable server speed.
-MIN_SPEED_MBPS = 1.0
-
-# Maximum acceptable ping.
-MAX_PING_MS = 1500.0
-
-# ============================================================
-# Priority Countries & Server Testing Configuration
-# ============================================================
-
-# ဦးစားပေးနိုင်ငံများ
-PRIORITY_COUNTRIES = ["US", "CA", "NL", "SG", "DE"]
-
-# နိုင်ငံအလိုက် အနည်းဆုံး သိမ်းဆည်းမယ့် အရေအတွက်
-MIN_SERVERS_PER_COUNTRY = 3
-MAX_SERVERS_PER_COUNTRY = 10
-
-# Server testing configuration
-TEST_TIMEOUT = 3  # seconds (reduced from 5)
-MAX_WORKERS = 20  # parallel testing threads
-
-USER_AGENT = (
-    "THOCK-VPNGate-Updater/2.0 "
-    "(GitHub Actions)"
-)
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) VPN-Realtime-Updater/3.0"
 
 
 # ============================================================
@@ -70,1285 +55,292 @@ USER_AGENT = (
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
-
 def clean(value):
-    if value is None:
-        return ""
-    return str(value).strip()
-
+    return str(value).strip() if value is not None else ""
 
 def to_float(value):
     try:
-        value = clean(value)
-        if not value:
-            return 0.0
-        return float(value.replace(",", ""))
+        return float(clean(value).replace(",", ""))
     except (ValueError, TypeError):
         return 0.0
 
-
 def to_int(value):
     try:
-        value = clean(value)
-        if not value:
-            return 0
-        return int(float(value.replace(",", "")))
+        return int(float(clean(value).replace(",", "")))
     except (ValueError, TypeError):
         return 0
-
 
 def normalize_header(value):
     return clean(value).lstrip("#").strip()
 
 
 # ============================================================
-# Server Testing Functions
+# Dynamic Password Scraper for VPNBook
 # ============================================================
 
-def test_server_connection(server):
-    """Test if a server is actually reachable"""
+def get_vpnbook_credentials():
+    """Scrape active password from VPNBook website."""
+    default_pass = "vpnbook"
     try:
-        ip = server.get("ip", "")
-        port = server.get("port", 0)
-        protocol = server.get("protocol", "tcp")
-        
-        if not ip or not port:
-            return None
-            
-        # TCP connection test
-        if protocol == "tcp":
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(TEST_TIMEOUT)
-            start_time = time.time()
-            result = sock.connect_ex((ip, port))
-            response_time = time.time() - start_time
-            sock.close()
-            
-            if result == 0:  # Connection successful
-                server["response_time_ms"] = round(response_time * 1000, 2)
-                return server
-                
+        res = requests.get("https://www.vpnbook.com/", timeout=10, headers={"User-Agent": USER_AGENT})
+        if res.status_code == 200:
+            match = re.search(r"Password:\s*<strong>([^<]+)</strong>", res.text, re.IGNORECASE)
+            if match:
+                return "vpnbook", match.group(1).strip()
     except Exception as e:
-        # Silent fail - server is not reachable
-        pass
+        print(f"⚠️ Could not scrape VPNBook password, using fallback: {e}")
+    return "vpnbook", default_pass
+
+
+# ============================================================
+# Strict Realtime Connection Test
+# ============================================================
+
+def test_realtime_reachability(server):
+    """
+    Directly test if the server port is reachable in real-time using TCP socket.
+    Servers that fail this test are STRICTLY REJECTED (No Fake Servers).
+    """
+    ip = server.get("ip") or server.get("hostname")
+    port = server.get("port")
+
+    if not ip or not port:
+        return None
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(TEST_TIMEOUT)
+        start_time = time.time()
         
+        # Perform real socket connection test
+        result = sock.connect_ex((ip, port))
+        latency = (time.time() - start_time) * 1000.0
+        sock.close()
+
+        if result == 0:  # Port is OPEN and active right now
+            server["ping_ms"] = round(latency, 2)
+            return server
+    except Exception:
+        pass
+
     return None
 
 
-def filter_active_servers(servers, max_workers=MAX_WORKERS):
-    """Filter servers by actual connection test"""
-    
-    if not servers:
+def filter_only_active_servers(candidates):
+    if not candidates:
         return []
-        
-    active_servers = []
-    tested_count = 0
-    
-    print(f"🔍 Testing {len(servers)} servers for availability...")
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_server = {
-            executor.submit(test_server_connection, server): server 
-            for server in servers
-        }
-        
-        for future in as_completed(future_to_server):
-            tested_count += 1
-            result = future.result()
-            if result:
-                active_servers.append(result)
-                print(f"✅ Active: {result.get('ip')}:{result.get('port')} ({result.get('country')})")
-            
-            if tested_count % 10 == 0:
-                print(f"⏳ Progress: {tested_count}/{len(servers)}")
-    
-    print(f"📊 Active servers found: {len(active_servers)}/{len(servers)}")
-    return active_servers
 
+    print(f"🔍 Testing {len(candidates)} server candidates in REAL-TIME...")
+    verified_servers = []
 
-def filter_servers_by_country(servers):
-    """ဦးစားပေးနိုင်ငံများကို အရင်ရွေးပြီး ကျန်တာကို နောက်မှထည့်တဲ့နည်း"""
-    
-    if not servers:
-        return []
-        
-    priority_servers = []
-    other_servers = []
-    
-    # နိုင်ငံအလိုက် စုစည်းခြင်း
-    country_groups = {}
-    for server in servers:
-        country = server.get("country", "")
-        if country not in country_groups:
-            country_groups[country] = []
-        country_groups[country].append(server)
-    
-    # ဦးစားပေးနိုင်ငံများကို အရင်ရွေးချယ်ခြင်း
-    for country in PRIORITY_COUNTRIES:
-        if country in country_groups:
-            # Score အမြင့်ဆုံး ဆာဗာများကို ရွေးချယ်
-            sorted_servers = sorted(
-                country_groups[country], 
-                key=lambda x: x.get("score", 0), 
-                reverse=True
-            )
-            # သတ်မှတ်ထားတဲ့ အရေအတွက်ကိုပဲ ယူ
-            selected = sorted_servers[:MAX_SERVERS_PER_COUNTRY]
-            priority_servers.extend(selected)
-            print(f"✅ {country}: {len(selected)} servers selected")
-    
-    # ကျန်တဲ့နိုင်ငံများကို နောက်မှထည့်
-    for country, server_list in country_groups.items():
-        if country not in PRIORITY_COUNTRIES:
-            # အကောင်းဆုံး ၃ လိုင်းပဲ ယူ
-            sorted_servers = sorted(
-                server_list, 
-                key=lambda x: x.get("score", 0), 
-                reverse=True
-            )
-            other_servers.extend(sorted_servers[:3])
-    
-    # စုစုပေါင်း ဆာဗာအရေအတွက်
-    total_servers = priority_servers + other_servers
-    print(f"📊 Total servers selected: {len(total_servers)}")
-    
-    return total_servers
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(test_realtime_reachability, s): s for s in candidates}
+        for future in as_completed(futures):
+            res = future.result()
+            if res:
+                verified_servers.append(res)
+                print(f"  🟢 ACTIVE: {res['ip']}:{res['port']} [{res['country']}] - {res['ping_ms']}ms")
+
+    print(f"✅ Real-time verified active servers: {len(verified_servers)} / {len(candidates)}")
+    return verified_servers
 
 
 # ============================================================
-# VPN Gate API
+# Fetchers: VPN Gate & VPNBook
 # ============================================================
 
-def download_source():
-    print("Downloading VPN Gate server list...")
-    response = requests.get(
-        SOURCE_URL,
-        headers={"User-Agent": USER_AGENT},
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-    text = response.content.decode("utf-8", errors="replace")
-    if "#HostName" not in text:
-        raise RuntimeError("VPN Gate API returned an unexpected response.")
-    return text
-
-
-def parse_source(text):
-    lines = text.splitlines()
-    header_index = None
-    for index, line in enumerate(lines):
-        if line.startswith("#HostName"):
-            header_index = index
-            break
-    if header_index is None:
-        raise RuntimeError("VPN Gate CSV header was not found.")
-    csv_text = "\n".join(lines[header_index:])
-    reader = csv.DictReader(io.StringIO(csv_text))
-    rows = []
-    for raw in reader:
-        row = {}
-        for key, value in raw.items():
-            row[normalize_header(key)] = clean(value)
-        rows.append(row)
-    return rows
-
-
-# ============================================================
-# OpenVPN Profile
-# ============================================================
-
-def decode_profile(row):
-    encoded = clean(row.get("OpenVPN_ConfigData_Base64"))
-    if not encoded:
-        return None
-    try:
-        decoded = base64.b64decode(encoded, validate=False)
-        profile = decoded.decode("utf-8", errors="replace")
-        if "client" not in profile:
-            return None
-        if "remote " not in profile:
-            return None
-        return profile.strip() + "\n"
-    except Exception as exc:
-        print("Profile decode failed:", exc)
-        return None
-
-
-def get_remote(profile):
-    if not profile:
-        return None
-    match = re.search(r"(?m)^\s*remote\s+(\S+)\s+(\d+)", profile)
-    if not match:
-        return None
-    return {"host": match.group(1), "port": int(match.group(2))}
-
-
-def get_protocol(profile):
-    if not profile:
-        return ""
-    match = re.search(r"(?m)^\s*proto\s+(\S+)", profile)
-    if not match:
-        return ""
-    return match.group(1).lower()
-
-
-def validate_profile(profile):
-    if not profile:
-        return False
-    required = ["client", "dev tun", "remote ", "proto "]
-    return all(item in profile for item in required)
-
-
-# ============================================================
-# File names
-# ============================================================
-
-def safe_filename(value):
-    value = clean(value)
-    value = re.sub(r"[^a-zA-Z0-9._-]+", "_", value)
-    value = value.strip("._-")
-    if not value:
-        value = "server"
-    return value[:100]
-
-
-# ============================================================
-# Server score
-# ============================================================
-
-def calculate_score(speed_mbps, ping_ms, uptime_days, sessions):
-    speed_score = min(speed_mbps / 1000.0, 1.0)
-    if ping_ms <= 0:
-        ping_score = 0.5
-    else:
-        ping_score = max(0.0, 1.0 - (min(ping_ms, MAX_PING_MS) / MAX_PING_MS))
-    uptime_score = min(uptime_days / 30.0, 1.0)
-    load_score = 1.0 / (1.0 + (sessions / 100.0))
-    score = (speed_score * 0.45 + ping_score * 0.30 + uptime_score * 0.15 + load_score * 0.10)
-    return round(score * 1000, 2)
-
-
-# ============================================================
-# Server processing
-# ============================================================
-
-def process_servers(rows):
-
-    # Remove old profiles
-    if os.path.exists(PROFILE_DIR):
-        shutil.rmtree(PROFILE_DIR)
-    os.makedirs(PROFILE_DIR, exist_ok=True)
-
+def fetch_vpngate_servers():
     servers = []
-    seen = set()
-    generated_at = utc_now()
-
-    for row in rows:
-        hostname = clean(row.get("HostName"))
-        ip = clean(row.get("IP"))
-        if not hostname and not ip:
+    text = ""
+    
+    for url in VPNGATE_URLS:
+        try:
+            r = requests.get(url, timeout=REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT}, verify=False)
+            if r.status_code == 200 and "#HostName" in r.text:
+                text = r.text
+                break
+        except Exception:
             continue
 
-        speed_bps = to_float(row.get("Speed"))
-        speed_mbps = speed_bps / 1_000_000.0
-        ping_ms = to_float(row.get("Ping"))
-        uptime_seconds = to_float(row.get("Uptime"))
-        uptime_days = uptime_seconds / 86400.0
+    if not text:
+        print("⚠️ VPN Gate API unavailable.")
+        return []
 
-        if speed_mbps < MIN_SPEED_MBPS:
+    lines = text.splitlines()
+    header_idx = next((i for i, line in enumerate(lines) if line.startswith("#HostName")), None)
+    if header_idx is None:
+        return []
+
+    reader = csv.DictReader(io.StringIO("\n".join(lines[header_idx:])))
+    
+    for raw in reader:
+        row = {normalize_header(k): clean(v) for k, v in raw.items() if k}
+        b64_config = row.get("OpenVPN_ConfigData_Base64")
+        ip = row.get("IP")
+        hostname = row.get("HostName")
+
+        if not b64_config or not ip:
             continue
-        if ping_ms <= 0:
+
+        try:
+            profile_str = base64.b64decode(b64_config).decode("utf-8", errors="replace")
+            port_match = re.search(r"(?m)^\s*remote\s+\S+\s+(\d+)", profile_str)
+            proto_match = re.search(r"(?m)^\s*proto\s+(\S+)", profile_str)
+
+            if not port_match:
+                continue
+
+            port = int(port_match.group(1))
+            protocol = proto_match.group(1).lower() if proto_match else "tcp"
+            protocol = "tcp" if "tcp" in protocol else "udp"
+
+            servers.append({
+                "source": "VPNGate",
+                "id": f"vpngate_{ip}_{port}",
+                "country": row.get("CountryShort", "UN"),
+                "country_name": row.get("CountryLong", "Unknown"),
+                "hostname": hostname,
+                "ip": ip,
+                "protocol": protocol,
+                "port": port,
+                "speed_mbps": round(to_float(row.get("Speed")) / 1_000_000.0, 2),
+                "ping_ms": to_float(row.get("Ping")),
+                "username": "vpn",
+                "password": "vpn",
+                "profile_content": profile_str,
+            })
+        except Exception:
             continue
-        if ping_ms > MAX_PING_MS:
-            continue
 
-        profile = decode_profile(row)
-        if not validate_profile(profile):
-            continue
+    return servers
 
-        remote = get_remote(profile)
-        if not remote:
-            continue
 
-        protocol = get_protocol(profile)
-        if not protocol:
-            continue
-        if protocol == "tcp-client":
-            protocol = "tcp"
+def fetch_vpnbook_servers():
+    servers = []
+    v_user, v_pass = get_vpnbook_credentials()
+    
+    # VPNBook OpenVPN profile template
+    ovpn_template = (
+        "client\n"
+        "dev tun\n"
+        "proto tcp\n"
+        "remote {host} 443\n"
+        "resolv-retry infinite\n"
+        "nobind\n"
+        "persist-key\n"
+        "persist-tun\n"
+        "cipher AES-256-CBC\n"
+        "auth SHA256\n"
+        "verb 3\n"
+    )
 
-        server_id = f"{ip or hostname}:{remote['port']}:{protocol}"
-        if server_id in seen:
-            continue
-        seen.add(server_id)
+    for node in VPNBOOK_NODES:
+        config_data = ovpn_template.format(host=node["host"])
+        servers.append({
+            "source": "VPNBook",
+            "id": f"vpnbook_{node['host']}_443",
+            "country": node["country"],
+            "country_name": node["country_name"],
+            "hostname": node["host"],
+            "ip": node["ip"],
+            "protocol": "tcp",
+            "port": 443,
+            "speed_mbps": 10.0,
+            "ping_ms": 100.0,
+            "username": v_user,
+            "password": v_pass,
+            "profile_content": config_data,
+        })
 
-        sessions = to_int(row.get("NumVpnSessions"))
-        score = calculate_score(
-            speed_mbps=speed_mbps,
-            ping_ms=ping_ms,
-            uptime_days=uptime_days,
-            sessions=sessions,
-        )
-
-        filename = (
-            safe_filename(hostname or ip)
-            + "_"
-            + str(remote["port"])
-            + "_"
-            + protocol
-            + ".ovpn"
-        )
-
-        profile_path = os.path.join(PROFILE_DIR, filename)
-        with open(profile_path, "w", encoding="utf-8") as file:
-            file.write(profile)
-
-        country_short = clean(row.get("CountryShort"))
-        country_long = clean(row.get("CountryLong"))
-
-        server = {
-            "id": server_id,
-            "country": country_short,
-            "country_name": country_long,
-            "hostname": hostname,
-            "ip": ip,
-            "protocol": protocol,
-            "port": remote["port"],
-            "tcp_port": to_int(row.get("TcpPort")),
-            "udp_port": to_int(row.get("UdpPort")),
-            "speed_mbps": round(speed_mbps, 2),
-            "ping_ms": round(ping_ms, 2),
-            "sessions": sessions,
-            "uptime_days": round(uptime_days, 2),
-            "score": score,
-            "username": VPN_USERNAME,
-            "password": VPN_PASSWORD,
-            "profile": "profiles/" + filename,
-            "last_updated": generated_at,
-        }
-
-        servers.append(server)
-
-    # Sort by score
-    servers.sort(key=lambda item: (-item["score"], item["ping_ms"], -item["speed_mbps"], item["sessions"]))
-
-    return servers[:MAX_SERVERS]
+    return servers
 
 
 # ============================================================
-# CSV & JSON
-# ============================================================
-
-def write_csv(servers):
-    os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
-    
-    fields = [
-        "id", "country", "country_name", "hostname", "ip", "protocol",
-        "port", "tcp_port", "udp_port", "speed_mbps", "ping_ms", "sessions",
-        "uptime_days", "score", "username", "password", "profile", "last_updated"
-    ]
-    
-    # Filter out any extra fields like response_time_ms
-    filtered_servers = []
-    for server in servers:
-        filtered_server = {key: server.get(key, "") for key in fields}
-        filtered_servers.append(filtered_server)
-    
-    with open(CSV_OUTPUT, "w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(filtered_servers)
-
-
-def write_json(servers):
-    os.makedirs(os.path.dirname(JSON_OUTPUT), exist_ok=True)
-    
-    # Remove response_time_ms from JSON too if needed
-    clean_servers = []
-    for server in servers:
-        clean_server = {k: v for k, v in server.items() if k != "response_time_ms"}
-        clean_servers.append(clean_server)
-    
-    payload = {
-        "version": 2,
-        "generated_at": utc_now(),
-        "source": "VPN Gate",
-        "count": len(clean_servers),
-        "servers": clean_servers,
-    }
-    with open(JSON_OUTPUT, "w", encoding="utf-8") as file:
-        json.dump(payload, file, indent=2, ensure_ascii=False)
-        file.write("\n")
-
-
-# ============================================================
-# Main
+# Main Processor
 # ============================================================
 
 def main():
-    try:
-        print("========================================")
-        print("THOCK VPN Gate Updater v2.1 (Active Server Filter)")
-        print("========================================")
+    print("========================================")
+    print("🚀 REALTIME Multi-Source VPN Fetcher")
+    print("========================================")
 
-        # Download and process
-        source = download_source()
-        rows = parse_source(source)
-        print(f"Source servers: {len(rows)}")
+    # 1. Gather all candidates
+    candidates = []
+    
+    vpngate_list = fetch_vpngate_servers()
+    print(f"📥 Pulled {len(vpngate_list)} candidates from VPN Gate")
+    candidates.extend(vpngate_list)
 
-        servers = process_servers(rows)
-        print(f"Valid OpenVPN servers: {len(servers)}")
+    vpnbook_list = fetch_vpnbook_servers()
+    print(f"📥 Pulled {len(vpnbook_list)} candidates from VPNBook")
+    candidates.extend(vpnbook_list)
 
-        if not servers:
-            raise RuntimeError("No valid OpenVPN servers found.")
-
-        # Filter by priority countries
-        filtered_servers = filter_servers_by_country(servers)
-        print(f"After country filter: {len(filtered_servers)}")
-
-        if not filtered_servers:
-            raise RuntimeError("No servers after country filter!")
-
-        # Test server availability
-        active_servers = filter_active_servers(filtered_servers)
-
-        if not active_servers:
-            print("⚠️ No active servers found! Saving filtered list anyway.")
-            active_servers = filtered_servers[:10]
-
-        # Write output
-        write_csv(active_servers)
-        write_json(active_servers)
-
-        print(f"✅ Created: {CSV_OUTPUT}")
-        print(f"✅ Created: {JSON_OUTPUT}")
-        print(f"✅ Created profiles: {PROFILE_DIR}")
-        print("✅ Update completed successfully.")
-        
-        return 0
-
-    except Exception as exc:
-        print(f"❌ ERROR: {exc}")
-        import traceback
-        traceback.print_exc()
+    if not candidates:
+        print("❌ No VPN candidates found across all sources.")
         return 1
 
+    # 2. Strict Real-time Socket Connection Filter
+    active_servers = filter_only_active_servers(candidates)
 
-if __name__ == "__main__":
-    sys.exit(main())    try:
-        ip = server.get("ip", "")
-        port = server.get("port", 0)
-        protocol = server.get("protocol", "tcp")
-        
-        if not ip or not port:
-            return None
-            
-        # TCP connection test
-        if protocol == "tcp":
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(TEST_TIMEOUT)
-            start_time = time.time()
-            result = sock.connect_ex((ip, port))
-            response_time = time.time() - start_time
-            sock.close()
-            
-            if result == 0:  # Connection successful
-                server["response_time_ms"] = round(response_time * 1000, 2)
-                return server
-                
-    except Exception as e:
-        # Silent fail - server is not reachable
-        pass
-        
-    return None
+    if not active_servers:
+        print("❌ CRITICAL: Zero active servers passed the real-time socket check!")
+        return 1
 
-
-def filter_active_servers(servers, max_workers=MAX_WORKERS):
-    """Filter servers by actual connection test"""
-    
-    if not servers:
-        return []
-        
-    active_servers = []
-    tested_count = 0
-    
-    print(f"🔍 Testing {len(servers)} servers for availability...")
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_server = {
-            executor.submit(test_server_connection, server): server 
-            for server in servers
-        }
-        
-        for future in as_completed(future_to_server):
-            tested_count += 1
-            result = future.result()
-            if result:
-                active_servers.append(result)
-                print(f"✅ Active: {result.get('ip')}:{result.get('port')} ({result.get('country')})")
-            
-            if tested_count % 10 == 0:
-                print(f"⏳ Progress: {tested_count}/{len(servers)}")
-    
-    print(f"📊 Active servers found: {len(active_servers)}/{len(servers)}")
-    return active_servers
-
-
-def filter_servers_by_country(servers):
-    """ဦးစားပေးနိုင်ငံများကို အရင်ရွေးပြီး ကျန်တာကို နောက်မှထည့်တဲ့နည်း"""
-    
-    if not servers:
-        return []
-        
-    priority_servers = []
-    other_servers = []
-    
-    # နိုင်ငံအလိုက် စုစည်းခြင်း
-    country_groups = {}
-    for server in servers:
-        country = server.get("country", "")
-        if country not in country_groups:
-            country_groups[country] = []
-        country_groups[country].append(server)
-    
-    # ဦးစားပေးနိုင်ငံများကို အရင်ရွေးချယ်ခြင်း
-    for country in PRIORITY_COUNTRIES:
-        if country in country_groups:
-            # Score အမြင့်ဆုံး ဆာဗာများကို ရွေးချယ်
-            sorted_servers = sorted(
-                country_groups[country], 
-                key=lambda x: x.get("score", 0), 
-                reverse=True
-            )
-            # သတ်မှတ်ထားတဲ့ အရေအတွက်ကိုပဲ ယူ
-            selected = sorted_servers[:MAX_SERVERS_PER_COUNTRY]
-            priority_servers.extend(selected)
-            print(f"✅ {country}: {len(selected)} servers selected")
-    
-    # ကျန်တဲ့နိုင်ငံများကို နောက်မှထည့်
-    for country, server_list in country_groups.items():
-        if country not in PRIORITY_COUNTRIES:
-            # အကောင်းဆုံး ၃ လိုင်းပဲ ယူ
-            sorted_servers = sorted(
-                server_list, 
-                key=lambda x: x.get("score", 0), 
-                reverse=True
-            )
-            other_servers.extend(sorted_servers[:3])
-    
-    # စုစုပေါင်း ဆာဗာအရေအတွက်
-    total_servers = priority_servers + other_servers
-    print(f"📊 Total servers selected: {len(total_servers)}")
-    
-    return total_servers
-
-
-# ============================================================
-# VPN Gate API
-# ============================================================
-
-def download_source():
-    print("Downloading VPN Gate server list...")
-    response = requests.get(
-        SOURCE_URL,
-        headers={"User-Agent": USER_AGENT},
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-    text = response.content.decode("utf-8", errors="replace")
-    if "#HostName" not in text:
-        raise RuntimeError("VPN Gate API returned an unexpected response.")
-    return text
-
-
-def parse_source(text):
-    lines = text.splitlines()
-    header_index = None
-    for index, line in enumerate(lines):
-        if line.startswith("#HostName"):
-            header_index = index
-            break
-    if header_index is None:
-        raise RuntimeError("VPN Gate CSV header was not found.")
-    csv_text = "\n".join(lines[header_index:])
-    reader = csv.DictReader(io.StringIO(csv_text))
-    rows = []
-    for raw in reader:
-        row = {}
-        for key, value in raw.items():
-            row[normalize_header(key)] = clean(value)
-        rows.append(row)
-    return rows
-
-
-# ============================================================
-# OpenVPN Profile
-# ============================================================
-
-def decode_profile(row):
-    encoded = clean(row.get("OpenVPN_ConfigData_Base64"))
-    if not encoded:
-        return None
-    try:
-        decoded = base64.b64decode(encoded, validate=False)
-        profile = decoded.decode("utf-8", errors="replace")
-        if "client" not in profile:
-            return None
-        if "remote " not in profile:
-            return None
-        return profile.strip() + "\n"
-    except Exception as exc:
-        print("Profile decode failed:", exc)
-        return None
-
-
-def get_remote(profile):
-    if not profile:
-        return None
-    match = re.search(r"(?m)^\s*remote\s+(\S+)\s+(\d+)", profile)
-    if not match:
-        return None
-    return {"host": match.group(1), "port": int(match.group(2))}
-
-
-def get_protocol(profile):
-    if not profile:
-        return ""
-    match = re.search(r"(?m)^\s*proto\s+(\S+)", profile)
-    if not match:
-        return ""
-    return match.group(1).lower()
-
-
-def validate_profile(profile):
-    if not profile:
-        return False
-    required = ["client", "dev tun", "remote ", "proto "]
-    return all(item in profile for item in required)
-
-
-# ============================================================
-# File names
-# ============================================================
-
-def safe_filename(value):
-    value = clean(value)
-    value = re.sub(r"[^a-zA-Z0-9._-]+", "_", value)
-    value = value.strip("._-")
-    if not value:
-        value = "server"
-    return value[:100]
-
-
-# ============================================================
-# Server score
-# ============================================================
-
-def calculate_score(speed_mbps, ping_ms, uptime_days, sessions):
-    speed_score = min(speed_mbps / 1000.0, 1.0)
-    if ping_ms <= 0:
-        ping_score = 0.5
-    else:
-        ping_score = max(0.0, 1.0 - (min(ping_ms, MAX_PING_MS) / MAX_PING_MS))
-    uptime_score = min(uptime_days / 30.0, 1.0)
-    load_score = 1.0 / (1.0 + (sessions / 100.0))
-    score = (speed_score * 0.45 + ping_score * 0.30 + uptime_score * 0.15 + load_score * 0.10)
-    return round(score * 1000, 2)
-
-
-# ============================================================
-# Server processing
-# ============================================================
-
-def process_servers(rows):
-
-    # Remove old profiles
+    # 3. Clean up directory & Write Profiles
     if os.path.exists(PROFILE_DIR):
         shutil.rmtree(PROFILE_DIR)
     os.makedirs(PROFILE_DIR, exist_ok=True)
 
-    servers = []
-    seen = set()
+    final_server_list = []
     generated_at = utc_now()
 
-    for row in rows:
-        hostname = clean(row.get("HostName"))
-        ip = clean(row.get("IP"))
-        if not hostname and not ip:
-            continue
+    for s in active_servers:
+        safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "_", s["hostname"] or s["ip"])
+        filename = f"{s['source'].lower()}_{safe_name}_{s['port']}_{s['protocol']}.ovpn"
+        filepath = os.path.join(PROFILE_DIR, filename)
 
-        speed_bps = to_float(row.get("Speed"))
-        speed_mbps = speed_bps / 1_000_000.0
-        ping_ms = to_float(row.get("Ping"))
-        uptime_seconds = to_float(row.get("Uptime"))
-        uptime_days = uptime_seconds / 86400.0
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(s["profile_content"])
 
-        if speed_mbps < MIN_SPEED_MBPS:
-            continue
-        if ping_ms <= 0:
-            continue
-        if ping_ms > MAX_PING_MS:
-            continue
+        s["profile"] = f"profiles/{filename}"
+        s["last_updated"] = generated_at
+        del s["profile_content"]  # Clean up memory
+        final_server_list.append(s)
 
-        profile = decode_profile(row)
-        if not validate_profile(profile):
-            continue
+    # Sort by lowest latency
+    final_server_list.sort(key=lambda x: x["ping_ms"])
 
-        remote = get_remote(profile)
-        if not remote:
-            continue
-
-        protocol = get_protocol(profile)
-        if not protocol:
-            continue
-        if protocol == "tcp-client":
-            protocol = "tcp"
-
-        server_id = f"{ip or hostname}:{remote['port']}:{protocol}"
-        if server_id in seen:
-            continue
-        seen.add(server_id)
-
-        sessions = to_int(row.get("NumVpnSessions"))
-        score = calculate_score(
-            speed_mbps=speed_mbps,
-            ping_ms=ping_ms,
-            uptime_days=uptime_days,
-            sessions=sessions,
-        )
-
-        filename = (
-            safe_filename(hostname or ip)
-            + "_"
-            + str(remote["port"])
-            + "_"
-            + protocol
-            + ".ovpn"
-        )
-
-        profile_path = os.path.join(PROFILE_DIR, filename)
-        with open(profile_path, "w", encoding="utf-8") as file:
-            file.write(profile)
-
-        country_short = clean(row.get("CountryShort"))
-        country_long = clean(row.get("CountryLong"))
-
-        server = {
-            "id": server_id,
-            "country": country_short,
-            "country_name": country_long,
-            "hostname": hostname,
-            "ip": ip,
-            "protocol": protocol,
-            "port": remote["port"],
-            "tcp_port": to_int(row.get("TcpPort")),
-            "udp_port": to_int(row.get("UdpPort")),
-            "speed_mbps": round(speed_mbps, 2),
-            "ping_ms": round(ping_ms, 2),
-            "sessions": sessions,
-            "uptime_days": round(uptime_days, 2),
-            "score": score,
-            "username": VPN_USERNAME,
-            "password": VPN_PASSWORD,
-            "profile": "profiles/" + filename,
-            "last_updated": generated_at,
-        }
-
-        servers.append(server)
-
-    # Sort by score
-    servers.sort(key=lambda item: (-item["score"], item["ping_ms"], -item["speed_mbps"], item["sessions"]))
-
-    return servers[:MAX_SERVERS]
-
-
-# ============================================================
-# CSV & JSON
-# ============================================================
-
-def write_csv(servers):
+    # 4. Save CSV & JSON
     os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
-    
-    # FIXED: Added 'response_time_ms' to fields
-    fields = [
-        "id", "country", "country_name", "hostname", "ip", "protocol",
-        "port", "tcp_port", "udp_port", "speed_mbps", "ping_ms", "sessions",
-        "uptime_days", "score", "username", "password", "profile", "last_updated",
-        "response_time_ms"  # <-- NEW: Added this field
-    ]
-    
-    with open(CSV_OUTPUT, "w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fields, extrasaction='ignore')
-        writer.writeheader()
-        writer.writerows(servers)
-
-
-def write_json(servers):
     os.makedirs(os.path.dirname(JSON_OUTPUT), exist_ok=True)
+
+    fields = [
+        "id", "source", "country", "country_name", "hostname", "ip",
+        "protocol", "port", "speed_mbps", "ping_ms", "username",
+        "password", "profile", "last_updated"
+    ]
+
+    with open(CSV_OUTPUT, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for row in final_server_list:
+            writer.writerow({k: row.get(k, "") for k in fields})
+
     payload = {
-        "version": 2,
-        "generated_at": utc_now(),
-        "source": "VPN Gate",
-        "count": len(servers),
-        "servers": servers,
+        "version": 3,
+        "generated_at": generated_at,
+        "count": len(final_server_list),
+        "servers": final_server_list,
     }
-    with open(JSON_OUTPUT, "w", encoding="utf-8") as file:
-        json.dump(payload, file, indent=2, ensure_ascii=False)
-        file.write("\n")
 
+    with open(JSON_OUTPUT, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
-# ============================================================
-# Main
-# ============================================================
-
-def main():
-    print("========================================")
-    print("THOCK VPN Gate Updater v2.1 (Active Server Filter)")
-    print("========================================")
-
-    # Download and process
-    source = download_source()
-    rows = parse_source(source)
-    print(f"Source servers: {len(rows)}")
-
-    servers = process_servers(rows)
-    print(f"Valid OpenVPN servers: {len(servers)}")
-
-    if not servers:
-        raise RuntimeError("No valid OpenVPN servers found.")
-
-    # Filter by priority countries
-    filtered_servers = filter_servers_by_country(servers)
-    print(f"After country filter: {len(filtered_servers)}")
-
-    # Test server availability
-    active_servers = filter_active_servers(filtered_servers)
-
-    if not active_servers:
-        print("⚠️ No active servers found! Saving filtered list anyway.")
-        active_servers = filtered_servers[:10]  # Save at least 10 servers
-
-    # Write output
-    write_csv(active_servers)
-    write_json(active_servers)
-
-    print(f"✅ Created: {CSV_OUTPUT}")
-    print(f"✅ Created: {JSON_OUTPUT}")
-    print(f"✅ Created profiles: {PROFILE_DIR}")
-    print("Update completed successfully.")
+    print(f"\n🎉 SUCCESS: {len(final_server_list)} ACTIVE REAL-TIME SERVERS SAVED.")
+    print(f"📁 CSV: {CSV_OUTPUT}")
+    print(f"📁 JSON: {JSON_OUTPUT}")
+    return 0
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Cancelled.")
-        sys.exit(130)
-    except Exception as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)        ip = server.get("ip", "")
-        port = server.get("port", 0)
-        protocol = server.get("protocol", "tcp")
-        
-        if not ip or not port:
-            return None
-            
-        # TCP connection test
-        if protocol == "tcp":
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(TEST_TIMEOUT)
-            start_time = time.time()
-            result = sock.connect_ex((ip, port))
-            response_time = time.time() - start_time
-            sock.close()
-            
-            if result == 0:  # Connection successful
-                server["response_time_ms"] = round(response_time * 1000, 2)
-                return server
-                
-    except Exception as e:
-        # Silent fail - server is not reachable
-        pass
-        
-    return None
-
-
-def filter_active_servers(servers, max_workers=MAX_WORKERS):
-    """Filter servers by actual connection test"""
-    
-    if not servers:
-        return []
-        
-    active_servers = []
-    tested_count = 0
-    
-    print(f"🔍 Testing {len(servers)} servers for availability...")
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_server = {
-            executor.submit(test_server_connection, server): server 
-            for server in servers
-        }
-        
-        for future in as_completed(future_to_server):
-            tested_count += 1
-            result = future.result()
-            if result:
-                active_servers.append(result)
-                print(f"✅ Active: {result.get('ip')}:{result.get('port')} ({result.get('country')})")
-            
-            if tested_count % 10 == 0:
-                print(f"⏳ Progress: {tested_count}/{len(servers)}")
-    
-    print(f"📊 Active servers found: {len(active_servers)}/{len(servers)}")
-    return active_servers
-
-
-def filter_servers_by_country(servers):
-    """ဦးစားပေးနိုင်ငံများကို အရင်ရွေးပြီး ကျန်တာကို နောက်မှထည့်တဲ့နည်း"""
-    
-    if not servers:
-        return []
-        
-    priority_servers = []
-    other_servers = []
-    
-    # နိုင်ငံအလိုက် စုစည်းခြင်း
-    country_groups = {}
-    for server in servers:
-        country = server.get("country", "")
-        if country not in country_groups:
-            country_groups[country] = []
-        country_groups[country].append(server)
-    
-    # ဦးစားပေးနိုင်ငံများကို အရင်ရွေးချယ်ခြင်း
-    for country in PRIORITY_COUNTRIES:
-        if country in country_groups:
-            # Score အမြင့်ဆုံး ဆာဗာများကို ရွေးချယ်
-            sorted_servers = sorted(
-                country_groups[country], 
-                key=lambda x: x.get("score", 0), 
-                reverse=True
-            )
-            # သတ်မှတ်ထားတဲ့ အရေအတွက်ကိုပဲ ယူ
-            selected = sorted_servers[:MAX_SERVERS_PER_COUNTRY]
-            priority_servers.extend(selected)
-            print(f"✅ {country}: {len(selected)} servers selected")
-    
-    # ကျန်တဲ့နိုင်ငံများကို နောက်မှထည့်
-    for country, server_list in country_groups.items():
-        if country not in PRIORITY_COUNTRIES:
-            # အကောင်းဆုံး ၃ လိုင်းပဲ ယူ
-            sorted_servers = sorted(
-                server_list, 
-                key=lambda x: x.get("score", 0), 
-                reverse=True
-            )
-            other_servers.extend(sorted_servers[:3])
-    
-    # စုစုပေါင်း ဆာဗာအရေအတွက်
-    total_servers = priority_servers + other_servers
-    print(f"📊 Total servers selected: {len(total_servers)}")
-    
-    return total_servers
-
-
-# ============================================================
-# VPN Gate API (unchanged)
-# ============================================================
-
-def download_source():
-    print("Downloading VPN Gate server list...")
-    response = requests.get(
-        SOURCE_URL,
-        headers={"User-Agent": USER_AGENT},
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-    text = response.content.decode("utf-8", errors="replace")
-    if "#HostName" not in text:
-        raise RuntimeError("VPN Gate API returned an unexpected response.")
-    return text
-
-
-def parse_source(text):
-    lines = text.splitlines()
-    header_index = None
-    for index, line in enumerate(lines):
-        if line.startswith("#HostName"):
-            header_index = index
-            break
-    if header_index is None:
-        raise RuntimeError("VPN Gate CSV header was not found.")
-    csv_text = "\n".join(lines[header_index:])
-    reader = csv.DictReader(io.StringIO(csv_text))
-    rows = []
-    for raw in reader:
-        row = {}
-        for key, value in raw.items():
-            row[normalize_header(key)] = clean(value)
-        rows.append(row)
-    return rows
-
-
-# ============================================================
-# OpenVPN Profile (unchanged)
-# ============================================================
-
-def decode_profile(row):
-    encoded = clean(row.get("OpenVPN_ConfigData_Base64"))
-    if not encoded:
-        return None
-    try:
-        decoded = base64.b64decode(encoded, validate=False)
-        profile = decoded.decode("utf-8", errors="replace")
-        if "client" not in profile:
-            return None
-        if "remote " not in profile:
-            return None
-        return profile.strip() + "\n"
-    except Exception as exc:
-        print("Profile decode failed:", exc)
-        return None
-
-
-def get_remote(profile):
-    if not profile:
-        return None
-    match = re.search(r"(?m)^\s*remote\s+(\S+)\s+(\d+)", profile)
-    if not match:
-        return None
-    return {"host": match.group(1), "port": int(match.group(2))}
-
-
-def get_protocol(profile):
-    if not profile:
-        return ""
-    match = re.search(r"(?m)^\s*proto\s+(\S+)", profile)
-    if not match:
-        return ""
-    return match.group(1).lower()
-
-
-def validate_profile(profile):
-    if not profile:
-        return False
-    required = ["client", "dev tun", "remote ", "proto "]
-    return all(item in profile for item in required)
-
-
-# ============================================================
-# File names (unchanged)
-# ============================================================
-
-def safe_filename(value):
-    value = clean(value)
-    value = re.sub(r"[^a-zA-Z0-9._-]+", "_", value)
-    value = value.strip("._-")
-    if not value:
-        value = "server"
-    return value[:100]
-
-
-# ============================================================
-# Server score (unchanged)
-# ============================================================
-
-def calculate_score(speed_mbps, ping_ms, uptime_days, sessions):
-    speed_score = min(speed_mbps / 1000.0, 1.0)
-    if ping_ms <= 0:
-        ping_score = 0.5
-    else:
-        ping_score = max(0.0, 1.0 - (min(ping_ms, MAX_PING_MS) / MAX_PING_MS))
-    uptime_score = min(uptime_days / 30.0, 1.0)
-    load_score = 1.0 / (1.0 + (sessions / 100.0))
-    score = (speed_score * 0.45 + ping_score * 0.30 + uptime_score * 0.15 + load_score * 0.10)
-    return round(score * 1000, 2)
-
-
-# ============================================================
-# Server processing (modified)
-# ============================================================
-
-def process_servers(rows):
-
-    # Remove old profiles
-    if os.path.exists(PROFILE_DIR):
-        shutil.rmtree(PROFILE_DIR)
-    os.makedirs(PROFILE_DIR, exist_ok=True)
-
-    servers = []
-    seen = set()
-    generated_at = utc_now()
-
-    for row in rows:
-        hostname = clean(row.get("HostName"))
-        ip = clean(row.get("IP"))
-        if not hostname and not ip:
-            continue
-
-        speed_bps = to_float(row.get("Speed"))
-        speed_mbps = speed_bps / 1_000_000.0
-        ping_ms = to_float(row.get("Ping"))
-        uptime_seconds = to_float(row.get("Uptime"))
-        uptime_days = uptime_seconds / 86400.0
-
-        if speed_mbps < MIN_SPEED_MBPS:
-            continue
-        if ping_ms <= 0:
-            continue
-        if ping_ms > MAX_PING_MS:
-            continue
-
-        profile = decode_profile(row)
-        if not validate_profile(profile):
-            continue
-
-        remote = get_remote(profile)
-        if not remote:
-            continue
-
-        protocol = get_protocol(profile)
-        if not protocol:
-            continue
-        if protocol == "tcp-client":
-            protocol = "tcp"
-
-        server_id = f"{ip or hostname}:{remote['port']}:{protocol}"
-        if server_id in seen:
-            continue
-        seen.add(server_id)
-
-        sessions = to_int(row.get("NumVpnSessions"))
-        score = calculate_score(
-            speed_mbps=speed_mbps,
-            ping_ms=ping_ms,
-            uptime_days=uptime_days,
-            sessions=sessions,
-        )
-
-        filename = (
-            safe_filename(hostname or ip)
-            + "_"
-            + str(remote["port"])
-            + "_"
-            + protocol
-            + ".ovpn"
-        )
-
-        profile_path = os.path.join(PROFILE_DIR, filename)
-        with open(profile_path, "w", encoding="utf-8") as file:
-            file.write(profile)
-
-        country_short = clean(row.get("CountryShort"))
-        country_long = clean(row.get("CountryLong"))
-
-        server = {
-            "id": server_id,
-            "country": country_short,
-            "country_name": country_long,
-            "hostname": hostname,
-            "ip": ip,
-            "protocol": protocol,
-            "port": remote["port"],
-            "tcp_port": to_int(row.get("TcpPort")),
-            "udp_port": to_int(row.get("UdpPort")),
-            "speed_mbps": round(speed_mbps, 2),
-            "ping_ms": round(ping_ms, 2),
-            "sessions": sessions,
-            "uptime_days": round(uptime_days, 2),
-            "score": score,
-            "username": VPN_USERNAME,
-            "password": VPN_PASSWORD,
-            "profile": "profiles/" + filename,
-            "last_updated": generated_at,
-        }
-
-        servers.append(server)
-
-    # Sort by score
-    servers.sort(key=lambda item: (-item["score"], item["ping_ms"], -item["speed_mbps"], item["sessions"]))
-
-    return servers[:MAX_SERVERS]
-
-
-# ============================================================
-# CSV & JSON (unchanged)
-# ============================================================
-
-def write_csv(servers):
-    os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
-    fields = [
-        "id", "country", "country_name", "hostname", "ip", "protocol",
-        "port", "tcp_port", "udp_port", "speed_mbps", "ping_ms", "sessions",
-        "uptime_days", "score", "username", "password", "profile", "last_updated"
-    ]
-    with open(CSV_OUTPUT, "w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(servers)
-
-
-def write_json(servers):
-    os.makedirs(os.path.dirname(JSON_OUTPUT), exist_ok=True)
-    payload = {
-        "version": 2,
-        "generated_at": utc_now(),
-        "source": "VPN Gate",
-        "count": len(servers),
-        "servers": servers,
-    }
-    with open(JSON_OUTPUT, "w", encoding="utf-8") as file:
-        json.dump(payload, file, indent=2, ensure_ascii=False)
-        file.write("\n")
-
-
-# ============================================================
-# Main (modified)
-# ============================================================
-
-def main():
-    print("========================================")
-    print("THOCK VPN Gate Updater v2.1 (Active Server Filter)")
-    print("========================================")
-
-    # Download and process
-    source = download_source()
-    rows = parse_source(source)
-    print(f"Source servers: {len(rows)}")
-
-    servers = process_servers(rows)
-    print(f"Valid OpenVPN servers: {len(servers)}")
-
-    if not servers:
-        raise RuntimeError("No valid OpenVPN servers found.")
-
-    # NEW: Filter by priority countries
-    filtered_servers = filter_servers_by_country(servers)
-    print(f"After country filter: {len(filtered_servers)}")
-
-    # NEW: Test server availability
-    active_servers = filter_active_servers(filtered_servers)
-
-    if not active_servers:
-        print("⚠️ No active servers found! Saving filtered list anyway.")
-        active_servers = filtered_servers[:10]  # Save at least 10 servers
-
-    # Write output
-    write_csv(active_servers)
-    write_json(active_servers)
-
-    print(f"✅ Created: {CSV_OUTPUT}")
-    print(f"✅ Created: {JSON_OUTPUT}")
-    print(f"✅ Created profiles: {PROFILE_DIR}")
-    print("Update completed successfully.")
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Cancelled.")
-        sys.exit(130)
-    except Exception as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
+    sys.exit(main())
