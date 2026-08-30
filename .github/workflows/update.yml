@@ -1,42 +1,61 @@
-name: Update VPN Gate Servers
+name: Update VPN Servers
 
 on:
   schedule:
-    # 1 hour interval - runs at minute 0 of every hour
-    - cron: '0 0 * * *'
-  # Also allow manual trigger
+    # Every hour at minute 0 (UTC)
+    - cron: '0 * * * *'
+
+  # Allow manual run from GitHub Actions
   workflow_dispatch:
 
 jobs:
   update-servers:
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write
-      pull-requests: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+          cache: 'pip'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
-          
-      - name: Run update script
+
+      - name: Run VPN server updater
         run: |
           python scripts/update_vpngate.py
-          
+
+      - name: Check generated files
+        run: |
+          echo "=== servers.json ==="
+          test -f data/servers.json
+          cat data/servers.json
+
+          echo ""
+          echo "=== profiles ==="
+          find data/profiles -type f -name "*.ovpn" | sort
+
       - name: Commit and push changes
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config user.name "GitHub Action"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add data/
-          git diff --staged --quiet || git commit -m "Auto-update VPN Gate servers [skip ci]"
-          git push
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-update VPN servers"
+            git push
+          fi
