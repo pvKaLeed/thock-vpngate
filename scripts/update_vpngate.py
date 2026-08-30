@@ -1,346 +1,1739 @@
 #!/usr/bin/env python3
-# filename: update_vpngate.py
+# filename: update_servers.py
+#
+# StVPN public OpenVPN server updater
+#
+# Sources:
+#   1. PublicVPNList
+#   2. VPNBook
+#
+# Output:
+#   data/servers.json
+#   data/servers.csv
+#   data/profiles/*.ovpn
+#
+# IMPORTANT:
+# PublicVPNList .ovpn URLs are short-lived.
+# This script downloads them immediately and stores a local copy.
 
-import base64
 import csv
 import io
 import json
 import os
 import re
 import shutil
-import sys
 import socket
+import sys
 import time
-from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 
 import requests
 import urllib3
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+urllib3.disable_warnings(
+    urllib3.exceptions.InsecureRequestWarning
+)
+
 
 # ============================================================
-# Configuration
+# CONFIGURATION
 # ============================================================
 
-VPNGATE_URLS = [
-    "https://www.vpngate.net/api/iphone/",
-    "http://www.vpngate.net/api/iphone/",
-]
+PUBLICVPN_API = "https://publicvpnlist.com/api/v1/servers"
 
-VPNBOOK_NODES = [
-    {"host": "us1.vpnbook.com", "ip": "198.27.70.18", "country": "US", "country_name": "United States"},
-    {"host": "us2.vpnbook.com", "ip": "198.27.70.19", "country": "US", "country_name": "United States"},
-    {"host": "ca199.vpnbook.com", "ip": "192.99.11.199", "country": "CA", "country_name": "Canada"},
-    {"host": "fr1.vpnbook.com", "ip": "51.254.120.1", "country": "FR", "country_name": "France"},
-    {"host": "de4.vpnbook.com", "ip": "178.33.109.118", "country": "DE", "country_name": "Germany"},
-    {"host": "uk1.vpnbook.com", "ip": "151.80.32.223", "country": "GB", "country_name": "United Kingdom"},
-]
+# Stable OpenVPN metadata export.
+# Used as a fallback because the export can contain the
+# short-lived temporary_ovpn_url.
+PUBLICVPN_EXPORT = (
+    "https://publicvpnlist.com/exports/openvpn-latest.json"
+)
+
+VPNBOOK_URL = "https://www.vpnbook.com/freevpn/openvpn"
 
 CSV_OUTPUT = "data/servers.csv"
 JSON_OUTPUT = "data/servers.json"
 PROFILE_DIR = "data/profiles"
 
-REQUEST_TIMEOUT = 15
-TEST_TIMEOUT = 2.5  # Realtime Socket Test Timeout
-MAX_WORKERS = 30    # Concurrent Threads for fast testing
+REQUEST_TIMEOUT = 20
+TEST_TIMEOUT = 3.0
+MAX_WORKERS = 30
 
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) VPN-Realtime-Updater/3.0"
+# PublicVPNList
+PUBLICVPN_PAGES = 5
+PUBLICVPN_PER_PAGE = 200
+
+# Only accept reasonably fresh endpoints.
+FRESH_WITHIN = 259200  # 72 hours
+
+# Minimum quality filters.
+MIN_SPEED_MBPS = 0.5
+MAX_LATENCY_MS = 1000
+
+# Prefer TCP because it tends to be easier for Android users
+# on restricted networks.
+PREFER_TCP = True
+
+USER_AGENT = (
+    "Mozilla/5.0 "
+    "(Linux; Android 15) "
+    "StVPN-Server-Updater/4.0"
+)
 
 
 # ============================================================
-# Utility
+# HTTP
+# ============================================================
+
+def make_session():
+    session = requests.Session()
+
+    session.headers.update({
+        "User-Agent": USER_AGENT,
+        "Accept": "*/*",
+        "Accept-Encoding": "gzip, deflate",
+    })
+
+    return session
+
+
+# ============================================================
+# UTILITY
 # ============================================================
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
+
 def clean(value):
-    return str(value).strip() if value is not None else ""
+    if value is None:
+        return ""
+
+    return str(value).strip()
+
 
 def to_float(value):
     try:
-        return float(clean(value).replace(",", ""))
+        if value is None:
+            return 0.0
+
+        return float(
+            str(value)
+            .replace(",", "")
+            .strip()
+        )
+
     except (ValueError, TypeError):
         return 0.0
 
+
 def to_int(value):
     try:
-        return int(float(clean(value).replace(",", "")))
+        return int(
+            float(
+                str(value)
+                .replace(",", "")
+                .strip()
+            )
+        )
+
     except (ValueError, TypeError):
         return 0
 
-def normalize_header(value):
-    return clean(value).lstrip("#").strip()
+
+def safe_filename(value):
+    value = clean(value)
+
+    value = re.sub(
+        r"[^a-zA-Z0-9._-]+",
+        "_",
+        value
+    )
+
+    return value[:120] or "server"
+
+
+def normalize_protocol(value):
+    value = clean(value).lower()
+
+    if value in ("tcp", "udp"):
+        return value
+
+    return ""
 
 
 # ============================================================
-# Dynamic Password Scraper for VPNBook
+# CREDENTIAL PARSER
 # ============================================================
 
-def get_vpnbook_credentials():
-    """Scrape active password from VPNBook website."""
-    default_pass = "vpnbook"
+def parse_embedded_credentials(profile):
+    """
+    Read credentials only when explicitly embedded inside
+    an OpenVPN profile.
+
+    Supported:
+
+        <auth-user-pass>
+        username
+        password
+        </auth-user-pass>
+    """
+
+    if not profile:
+        return "", ""
+
+    match = re.search(
+        r"<auth-user-pass>\s*(.*?)\s*</auth-user-pass>",
+        profile,
+        re.IGNORECASE | re.DOTALL
+    )
+
+    if not match:
+        return "", ""
+
+    lines = [
+        line.strip()
+        for line in match.group(1).splitlines()
+        if line.strip()
+    ]
+
+    if len(lines) >= 2:
+        return lines[0], lines[1]
+
+    return "", ""
+
+
+def profile_requires_auth(profile):
+    """
+    Detect normal auth-user-pass directive.
+
+    An embedded <auth-user-pass> block is not treated as a
+    separate requirement because credentials are already inside.
+    """
+
+    if not profile:
+        return False
+
+    embedded = re.search(
+        r"<auth-user-pass>",
+        profile,
+        re.IGNORECASE
+    )
+
+    if embedded:
+        return False
+
+    return bool(
+        re.search(
+            r"^\s*auth-user-pass(?:\s+.*)?$",
+            profile,
+            re.MULTILINE | re.IGNORECASE
+        )
+    )
+
+
+# ============================================================
+# VPNBOOK
+# ============================================================
+
+def get_vpnbook_credentials(session):
+    """
+    Read the currently published VPNBook username/password.
+    """
+
+    username = "vpnbook"
+    password = ""
+
     try:
-        res = requests.get("https://www.vpnbook.com/", timeout=10, headers={"User-Agent": USER_AGENT})
-        if res.status_code == 200:
-            match = re.search(r"Password:\s*<strong>([^<]+)</strong>", res.text, re.IGNORECASE)
+        response = session.get(
+            VPNBOOK_URL,
+            timeout=REQUEST_TIMEOUT
+        )
+
+        if response.status_code != 200:
+            print(
+                "⚠️ VPNBook HTTP",
+                response.status_code
+            )
+
+            return username, password
+
+        html = response.text
+
+        # Current page format.
+        patterns = [
+            r"Username.*?vpnbook",
+            r"Password.*?<code[^>]*>\s*([^<\s]+)",
+            r"Password.*?<strong[^>]*>\s*([^<\s]+)",
+            r"Password.*?<b[^>]*>\s*([^<\s]+)",
+            r"Password.*?`([^`]+)`",
+        ]
+
+        # Username is normally fixed.
+        if re.search(
+            patterns[0],
+            html,
+            re.IGNORECASE | re.DOTALL
+        ):
+            username = "vpnbook"
+
+        for pattern in patterns[1:]:
+            match = re.search(
+                pattern,
+                html,
+                re.IGNORECASE | re.DOTALL
+            )
+
             if match:
-                return "vpnbook", match.group(1).strip()
-    except Exception as e:
-        print(f"⚠️ Could not scrape VPNBook password, using fallback: {e}")
-    return "vpnbook", default_pass
+                candidate = match.group(1).strip()
+
+                if (
+                    candidate
+                    and len(candidate) >= 4
+                    and "password" not in candidate.lower()
+                ):
+                    password = candidate
+                    break
+
+        # Generic fallback around visible Password text.
+        if not password:
+            match = re.search(
+                r"Password.{0,300}?([A-Za-z0-9]{5,20})",
+                html,
+                re.IGNORECASE | re.DOTALL
+            )
+
+            if match:
+                password = match.group(1).strip()
+
+        if password:
+            print(
+                f"🔑 VPNBook credentials detected: "
+                f"{username}/********"
+            )
+        else:
+            print(
+                "⚠️ VPNBook password not detected."
+            )
+
+    except Exception as exc:
+        print(
+            "⚠️ VPNBook credential error:",
+            exc
+        )
+
+    return username, password
+
+
+def fetch_vpnbook_servers(session):
+    """
+    Current VPNBook OpenVPN server list.
+
+    TCP 443 is preferred because it is generally more
+    firewall-friendly.
+    """
+
+    username, password = (
+        get_vpnbook_credentials(session)
+    )
+
+    if not password:
+        return []
+
+    nodes = [
+        {
+            "host": "us16.vpnbook.com",
+            "country": "US",
+            "country_name": "United States",
+        },
+        {
+            "host": "us178.vpnbook.com",
+            "country": "US",
+            "country_name": "United States",
+        },
+        {
+            "host": "ca149.vpnbook.com",
+            "country": "CA",
+            "country_name": "Canada",
+        },
+        {
+            "host": "ca196.vpnbook.com",
+            "country": "CA",
+            "country_name": "Canada",
+        },
+        {
+            "host": "uk205.vpnbook.com",
+            "country": "GB",
+            "country_name": "United Kingdom",
+        },
+        {
+            "host": "uk68.vpnbook.com",
+            "country": "GB",
+            "country_name": "United Kingdom",
+        },
+        {
+            "host": "de20.vpnbook.com",
+            "country": "DE",
+            "country_name": "Germany",
+        },
+        {
+            "host": "de220.vpnbook.com",
+            "country": "DE",
+            "country_name": "Germany",
+        },
+        {
+            "host": "fr200.vpnbook.com",
+            "country": "FR",
+            "country_name": "France",
+        },
+        {
+            "host": "fr231.vpnbook.com",
+            "country": "FR",
+            "country_name": "France",
+        },
+    ]
+
+    servers = []
+
+    for node in nodes:
+
+        host = node["host"]
+
+        profile = (
+            "client\n"
+            "dev tun\n"
+            "proto tcp\n"
+            f"remote {host} 443\n"
+            "resolv-retry infinite\n"
+            "nobind\n"
+            "persist-key\n"
+            "persist-tun\n"
+            "remote-cert-tls server\n"
+            "auth-user-pass\n"
+            "auth-nocache\n"
+            "verb 3\n"
+        )
+
+        servers.append({
+            "source": "VPNBook",
+            "id": f"vpnbook_{host}_443_tcp",
+            "country": node["country"],
+            "country_name": node["country_name"],
+            "hostname": host,
+            "ip": "",
+            "protocol": "tcp",
+            "port": 443,
+            "speed_mbps": 0.0,
+            "ping_ms": 0.0,
+            "username": username,
+            "password": password,
+            "profile_content": profile,
+            "config_auth": "username_password",
+        })
+
+    print(
+        f"📥 VPNBook candidates: {len(servers)}"
+    )
+
+    return servers
 
 
 # ============================================================
-# Strict Realtime Connection Test
+# PUBLICVPNLIST API
 # ============================================================
 
-def test_realtime_reachability(server):
+def fetch_publicvpn_api(session):
     """
-    Directly test if the server port is reachable in real-time using TCP socket.
-    Servers that fail this test are STRICTLY REJECTED (No Fake Servers).
-    """
-    ip = server.get("ip") or server.get("hostname")
-    port = server.get("port")
+    Fetch OpenVPN metadata from PublicVPNList API v1.
 
-    if not ip or not port:
+    API is used for:
+        country
+        hostname
+        ip
+        protocol
+        transport
+        port
+        speed
+        latency
+        freshness
+        status
+        public ID
+    """
+
+    servers = []
+
+    print(
+        "\n🌐 PublicVPNList API..."
+    )
+
+    for page in range(
+        1,
+        PUBLICVPN_PAGES + 1
+    ):
+
+        params = {
+            "protocol": "openvpn",
+            "status": "online",
+            "fresh_within": FRESH_WITHIN,
+            "sort": "score",
+            "order": "desc",
+            "page": page,
+            "per_page": PUBLICVPN_PER_PAGE,
+        }
+
+        try:
+
+            response = session.get(
+                PUBLICVPN_API,
+                params=params,
+                timeout=REQUEST_TIMEOUT
+            )
+
+            if response.status_code == 429:
+
+                print(
+                    "⚠️ PublicVPNList rate limit."
+                )
+
+                break
+
+            response.raise_for_status()
+
+            payload = response.json()
+
+            rows = payload.get(
+                "data",
+                []
+            )
+
+            if not rows:
+                break
+
+            for row in rows:
+
+                protocol = clean(
+                    row.get("protocol")
+                ).lower()
+
+                transport = normalize_protocol(
+                    row.get("transport")
+                )
+
+                if protocol != "openvpn":
+                    continue
+
+                if transport not in (
+                    "tcp",
+                    "udp"
+                ):
+                    continue
+
+                host = clean(
+                    row.get("hostname")
+                )
+
+                ip = clean(
+                    row.get("ip")
+                )
+
+                port = to_int(
+                    row.get("port")
+                )
+
+                if not host and not ip:
+                    continue
+
+                if port <= 0:
+                    continue
+
+                speed = to_float(
+                    row.get("speed_mbps")
+                )
+
+                latency = to_float(
+                    row.get("latency_ms")
+                )
+
+                if (
+                    speed > 0
+                    and speed < MIN_SPEED_MBPS
+                ):
+                    continue
+
+                if (
+                    latency > 0
+                    and latency > MAX_LATENCY_MS
+                ):
+                    continue
+
+                public_id = clean(
+                    row.get("id")
+                )
+
+                server = {
+                    "source": "PublicVPNList",
+                    "id": (
+                        f"publicvpnlist_"
+                        f"{public_id or ip}_{port}"
+                    ),
+                    "public_id": public_id,
+                    "country": clean(
+                        row.get(
+                            "country_code"
+                        )
+                    ) or "UN",
+                    "country_name": clean(
+                        row.get(
+                            "country_name"
+                        )
+                    ) or "Unknown",
+                    "hostname": host,
+                    "ip": ip,
+                    "protocol": transport,
+                    "port": port,
+                    "speed_mbps": speed,
+                    "ping_ms": latency,
+                    "username": "",
+                    "password": "",
+                    "profile_content": "",
+                    "config_auth": "unknown",
+                    "last_checked_at": clean(
+                        row.get(
+                            "last_checked_at"
+                        )
+                    ),
+                    "availability_status": clean(
+                        row.get(
+                            "availability_status"
+                        )
+                    ),
+                    "freshness_status": clean(
+                        row.get(
+                            "freshness_status"
+                        )
+                    ),
+                    "config_download_url": clean(
+                        row.get(
+                            "config_download_url"
+                        )
+                    ),
+                }
+
+                # Some API/export revisions may expose the
+                # temporary URL. Keep it if present.
+                temporary_url = (
+                    clean(
+                        row.get(
+                            "temporary_ovpn_url"
+                        )
+                    )
+                    or clean(
+                        row.get(
+                            "temporary_config_url"
+                        )
+                    )
+                )
+
+                server[
+                    "temporary_ovpn_url"
+                ] = temporary_url
+
+                servers.append(
+                    server
+                )
+
+        except Exception as exc:
+
+            print(
+                f"⚠️ PublicVPNList API "
+                f"page {page}: {exc}"
+            )
+
+            break
+
+    # Deduplicate
+    unique = {}
+
+    for server in servers:
+
+        key = (
+            server.get("ip")
+            or server.get("hostname"),
+            server.get("port"),
+            server.get("protocol"),
+        )
+
+        unique[key] = server
+
+    result = list(
+        unique.values()
+    )
+
+    print(
+        f"📥 PublicVPNList API candidates: "
+        f"{len(result)}"
+    )
+
+    return result
+
+
+# ============================================================
+# PUBLICVPNLIST EXPORT
+# ============================================================
+
+def fetch_publicvpn_export(session):
+    """
+    PublicVPNList's OpenVPN export can contain
+    temporary_ovpn_url.
+
+    This is intentionally used only as a metadata/config
+    acquisition source. The temporary URL is consumed
+    immediately and is not stored in servers.json.
+    """
+
+    print(
+        "\n📦 PublicVPNList OpenVPN export..."
+    )
+
+    try:
+
+        response = session.get(
+            PUBLICVPN_EXPORT,
+            timeout=REQUEST_TIMEOUT
+        )
+
+        if response.status_code == 429:
+
+            print(
+                "⚠️ PublicVPNList export rate limited."
+            )
+
+            return []
+
+        response.raise_for_status()
+
+        payload = response.json()
+
+        if isinstance(payload, dict):
+
+            rows = payload.get(
+                "data",
+                []
+            )
+
+            if not rows:
+                rows = payload.get(
+                    "servers",
+                    []
+                )
+
+        elif isinstance(payload, list):
+
+            rows = payload
+
+        else:
+            rows = []
+
+        print(
+            f"📦 Export records: {len(rows)}"
+        )
+
+        result = []
+
+        for row in rows:
+
+            protocol = clean(
+                row.get("protocol")
+            ).lower()
+
+            transport = normalize_protocol(
+                row.get("transport")
+                or row.get("proto")
+            )
+
+            if (
+                protocol
+                and protocol != "openvpn"
+            ):
+                continue
+
+            if transport not in (
+                "tcp",
+                "udp"
+            ):
+                continue
+
+            host = clean(
+                row.get("hostname")
+                or row.get("host")
+            )
+
+            ip = clean(
+                row.get("ip")
+            )
+
+            port = to_int(
+                row.get("port")
+            )
+
+            temporary_url = clean(
+                row.get(
+                    "temporary_ovpn_url"
+                )
+            )
+
+            if (
+                not temporary_url
+                or not host and not ip
+                or port <= 0
+            ):
+                continue
+
+            result.append({
+                "public_id": clean(
+                    row.get("id")
+                    or row.get(
+                        "public_id"
+                    )
+                ),
+                "country": clean(
+                    row.get(
+                        "country_code"
+                    )
+                    or row.get(
+                        "country"
+                    )
+                ) or "UN",
+                "country_name": clean(
+                    row.get(
+                        "country_name"
+                    )
+                    or row.get(
+                        "countryName"
+                    )
+                ) or "Unknown",
+                "hostname": host,
+                "ip": ip,
+                "protocol": transport,
+                "port": port,
+                "speed_mbps": to_float(
+                    row.get(
+                        "speed_mbps"
+                    )
+                    or row.get(
+                        "checker_measured_throughput_mbps"
+                    )
+                ),
+                "ping_ms": to_float(
+                    row.get(
+                        "latency_ms"
+                    )
+                    or row.get(
+                        "checker_measured_tunnel_rtt_ms"
+                    )
+                ),
+                "temporary_ovpn_url":
+                    temporary_url,
+                "last_checked_at": clean(
+                    row.get(
+                        "last_checked_at"
+                    )
+                    or row.get(
+                        "checkedAt"
+                    )
+                ),
+            })
+
+        return result
+
+    except Exception as exc:
+
+        print(
+            "⚠️ PublicVPNList export error:",
+            exc
+        )
+
+        return []
+
+
+# ============================================================
+# DOWNLOAD .OVPN
+# ============================================================
+
+def download_ovpn(
+    session,
+    temporary_url
+):
+    """
+    Download a short-lived .ovpn configuration.
+
+    We do not store the temporary URL in JSON.
+    """
+
+    if not temporary_url:
         return None
 
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(TEST_TIMEOUT)
-        start_time = time.time()
-        
-        # Perform real socket connection test
-        result = sock.connect_ex((ip, port))
-        latency = (time.time() - start_time) * 1000.0
-        sock.close()
 
-        if result == 0:  # Port is OPEN and active right now
-            server["ping_ms"] = round(latency, 2)
-            return server
+        response = session.get(
+            temporary_url,
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=True
+        )
+
+        if response.status_code != 200:
+            return None
+
+        content = response.text.strip()
+
+        if len(content) < 100:
+            return None
+
+        lower = content.lower()
+
+        # Basic OpenVPN profile validation.
+        if (
+            "client" not in lower
+            and "remote " not in lower
+        ):
+            return None
+
+        if (
+            "remote " not in lower
+            and "proto " not in lower
+        ):
+            return None
+
+        return content
+
     except Exception:
-        pass
-
-    return None
-
-
-def filter_only_active_servers(candidates):
-    if not candidates:
-        return []
-
-    print(f"🔍 Testing {len(candidates)} server candidates in REAL-TIME...")
-    verified_servers = []
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(test_realtime_reachability, s): s for s in candidates}
-        for future in as_completed(futures):
-            res = future.result()
-            if res:
-                verified_servers.append(res)
-                print(f"  🟢 ACTIVE: {res['ip']}:{res['port']} [{res['country']}] - {res['ping_ms']}ms")
-
-    print(f"✅ Real-time verified active servers: {len(verified_servers)} / {len(candidates)}")
-    return verified_servers
+        return None
 
 
 # ============================================================
-# Fetchers: VPN Gate & VPNBook
+# MERGE API + EXPORT
 # ============================================================
 
-def fetch_vpngate_servers():
-    servers = []
-    text = ""
-    
-    for url in VPNGATE_URLS:
-        try:
-            r = requests.get(url, timeout=REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT}, verify=False)
-            if r.status_code == 200 and "#HostName" in r.text:
-                text = r.text
-                break
-        except Exception:
-            continue
+def merge_publicvpn_sources(
+    api_servers,
+    export_servers
+):
+    """
+    API gives reliable metadata.
 
-    if not text:
-        print("⚠️ VPN Gate API unavailable.")
-        return []
+    Export gives temporary_ovpn_url when available.
 
-    lines = text.splitlines()
-    header_idx = next((i for i, line in enumerate(lines) if line.startswith("#HostName")), None)
-    if header_idx is None:
-        return []
+    Merge using:
+        public_id
+        IP + port + protocol
+        hostname + port + protocol
+    """
 
-    reader = csv.DictReader(io.StringIO("\n".join(lines[header_idx:])))
-    
-    for raw in reader:
-        row = {normalize_header(k): clean(v) for k, v in raw.items() if k}
-        b64_config = row.get("OpenVPN_ConfigData_Base64")
-        ip = row.get("IP")
-        hostname = row.get("HostName")
+    merged = {}
 
-        if not b64_config or not ip:
-            continue
+    def key_for(server):
 
-        try:
-            profile_str = base64.b64decode(b64_config).decode("utf-8", errors="replace")
-            port_match = re.search(r"(?m)^\s*remote\s+\S+\s+(\d+)", profile_str)
-            proto_match = re.search(r"(?m)^\s*proto\s+(\S+)", profile_str)
+        public_id = clean(
+            server.get("public_id")
+        )
 
-            if not port_match:
-                continue
+        if public_id:
+            return (
+                "id",
+                public_id
+            )
 
-            port = int(port_match.group(1))
-            protocol = proto_match.group(1).lower() if proto_match else "tcp"
-            protocol = "tcp" if "tcp" in protocol else "udp"
+        endpoint = (
+            clean(server.get("ip"))
+            or clean(
+                server.get("hostname")
+            )
+        )
 
-            servers.append({
-                "source": "VPNGate",
-                "id": f"vpngate_{ip}_{port}",
-                "country": row.get("CountryShort", "UN"),
-                "country_name": row.get("CountryLong", "Unknown"),
-                "hostname": hostname,
-                "ip": ip,
-                "protocol": protocol,
-                "port": port,
-                "speed_mbps": round(to_float(row.get("Speed")) / 1_000_000.0, 2),
-                "ping_ms": to_float(row.get("Ping")),
-                "username": "vpn",
-                "password": "vpn",
-                "profile_content": profile_str,
-            })
-        except Exception:
-            continue
+        return (
+            "endpoint",
+            endpoint,
+            to_int(
+                server.get("port")
+            ),
+            clean(
+                server.get("protocol")
+            ).lower(),
+        )
 
-    return servers
+    for server in api_servers:
+        merged[
+            key_for(server)
+        ] = dict(server)
 
+    for server in export_servers:
 
-def fetch_vpnbook_servers():
-    servers = []
-    v_user, v_pass = get_vpnbook_credentials()
-    
-    # VPNBook OpenVPN profile template
-    ovpn_template = (
-        "client\n"
-        "dev tun\n"
-        "proto tcp\n"
-        "remote {host} 443\n"
-        "resolv-retry infinite\n"
-        "nobind\n"
-        "persist-key\n"
-        "persist-tun\n"
-        "cipher AES-256-CBC\n"
-        "auth SHA256\n"
-        "verb 3\n"
+        key = key_for(server)
+
+        if key in merged:
+
+            current = merged[key]
+
+            current[
+                "temporary_ovpn_url"
+            ] = server.get(
+                "temporary_ovpn_url",
+                ""
+            )
+
+            # Keep export metadata only when
+            # API value is empty.
+            for field in (
+                "hostname",
+                "ip",
+                "country",
+                "country_name",
+                "speed_mbps",
+                "ping_ms",
+            ):
+
+                if not current.get(field):
+                    current[field] = (
+                        server.get(field)
+                    )
+
+        else:
+
+            merged[key] = dict(server)
+
+    return list(
+        merged.values()
     )
 
-    for node in VPNBOOK_NODES:
-        config_data = ovpn_template.format(host=node["host"])
-        servers.append({
-            "source": "VPNBook",
-            "id": f"vpnbook_{node['host']}_443",
-            "country": node["country"],
-            "country_name": node["country_name"],
-            "hostname": node["host"],
-            "ip": node["ip"],
-            "protocol": "tcp",
-            "port": 443,
-            "speed_mbps": 10.0,
-            "ping_ms": 100.0,
-            "username": v_user,
-            "password": v_pass,
-            "profile_content": config_data,
-        })
 
-    return servers
+# ============================================================
+# REALTIME TCP CHECK
+# ============================================================
+
+def resolve_ip(server):
+
+    ip = clean(
+        server.get("ip")
+    )
+
+    if ip:
+        return ip
+
+    hostname = clean(
+        server.get("hostname")
+    )
+
+    if not hostname:
+        return ""
+
+    try:
+
+        return socket.gethostbyname(
+            hostname
+        )
+
+    except Exception:
+
+        return ""
+
+
+def test_realtime(server):
+
+    host = resolve_ip(
+        server
+    )
+
+    port = to_int(
+        server.get("port")
+    )
+
+    if not host or port <= 0:
+        return None
+
+    sock = None
+
+    try:
+
+        start = time.monotonic()
+
+        sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
+
+        sock.settimeout(
+            TEST_TIMEOUT
+        )
+
+        result = sock.connect_ex(
+            (host, port)
+        )
+
+        elapsed = (
+            time.monotonic()
+            - start
+        ) * 1000.0
+
+        if result != 0:
+            return None
+
+        server["ip"] = (
+            server.get("ip")
+            or host
+        )
+
+        server["ping_ms"] = round(
+            elapsed,
+            2
+        )
+
+        return server
+
+    except Exception:
+
+        return None
+
+    finally:
+
+        if sock:
+
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+
+def filter_active(
+    servers
+):
+    if not servers:
+        return []
+
+    print(
+        f"\n🔍 Realtime testing "
+        f"{len(servers)} endpoints..."
+    )
+
+    active = []
+
+    with ThreadPoolExecutor(
+        max_workers=MAX_WORKERS
+    ) as executor:
+
+        futures = [
+            executor.submit(
+                test_realtime,
+                server
+            )
+            for server in servers
+        ]
+
+        for future in as_completed(
+            futures
+        ):
+
+            try:
+
+                result = future.result()
+
+                if result:
+
+                    active.append(
+                        result
+                    )
+
+                    print(
+                        "  🟢 "
+                        f"{result.get('ip')}:"
+                        f"{result.get('port')} "
+                        f"{result.get('protocol')} "
+                        f"{result.get('ping_ms')}ms "
+                        f"[{result.get('source')}]"
+                    )
+
+            except Exception:
+                pass
+
+    print(
+        f"\n✅ Realtime active: "
+        f"{len(active)} / {len(servers)}"
+    )
+
+    return active
 
 
 # ============================================================
-# Main Processor
+# DOWNLOAD PROFILES FOR ACTIVE SERVERS
+# ============================================================
+
+def acquire_publicvpn_profiles(
+    session,
+    active_servers
+):
+    """
+    Download PublicVPNList .ovpn profiles only after
+    realtime endpoint validation.
+    """
+
+    result = []
+
+    print(
+        "\n📥 Downloading PublicVPNList .ovpn..."
+    )
+
+    for server in active_servers:
+
+        if (
+            server.get("source")
+            != "PublicVPNList"
+        ):
+            result.append(server)
+            continue
+
+        url = clean(
+            server.get(
+                "temporary_ovpn_url"
+            )
+        )
+
+        profile = None
+
+        if url:
+
+            profile = download_ovpn(
+                session,
+                url
+            )
+
+        if not profile:
+
+            print(
+                "  ⚠️ No downloadable profile:",
+                server.get("ip")
+            )
+
+            continue
+
+        # Read credentials if profile contains them.
+        username, password = (
+            parse_embedded_credentials(
+                profile
+            )
+        )
+
+        server["profile_content"] = (
+            profile
+        )
+
+        server["username"] = (
+            username
+        )
+
+        server["password"] = (
+            password
+        )
+
+        server["config_auth"] = (
+            "embedded"
+            if username and password
+            else (
+                "required"
+                if profile_requires_auth(
+                    profile
+                )
+                else "none"
+            )
+        )
+
+        result.append(
+            server
+        )
+
+        print(
+            "  ✅ OVPN:",
+            server.get("ip"),
+            server.get("port")
+        )
+
+    return result
+
+
+# ============================================================
+# PROFILE SAVE
+# ============================================================
+
+def save_profiles(
+    servers
+):
+
+    if os.path.exists(
+        PROFILE_DIR
+    ):
+        shutil.rmtree(
+            PROFILE_DIR
+        )
+
+    os.makedirs(
+        PROFILE_DIR,
+        exist_ok=True
+    )
+
+    final = []
+
+    for server in servers:
+
+        profile = clean(
+            server.get(
+                "profile_content"
+            )
+        )
+
+        if not profile:
+            continue
+
+        host = (
+            server.get("hostname")
+            or server.get("ip")
+            or "server"
+        )
+
+        source = safe_filename(
+            server.get(
+                "source",
+                "vpn"
+            ).lower()
+        )
+
+        filename = (
+            f"{source}_"
+            f"{safe_filename(host)}_"
+            f"{server.get('port')}_"
+            f"{server.get('protocol')}.ovpn"
+        )
+
+        filepath = os.path.join(
+            PROFILE_DIR,
+            filename
+        )
+
+        try:
+
+            with open(
+                filepath,
+                "w",
+                encoding="utf-8"
+            ) as f:
+
+                f.write(
+                    profile.rstrip()
+                    + "\n"
+                )
+
+        except Exception as exc:
+
+            print(
+                "⚠️ Write failed:",
+                filename,
+                exc
+            )
+
+            continue
+
+        # Path consumed by Android app.
+        server["profile"] = (
+            f"profiles/{filename}"
+        )
+
+        server["last_updated"] = (
+            utc_now()
+        )
+
+        # Temporary URL must NEVER go into
+        # the app JSON.
+        server.pop(
+            "temporary_ovpn_url",
+            None
+        )
+
+        server.pop(
+            "config_download_url",
+            None
+        )
+
+        server.pop(
+            "profile_content",
+            None
+        )
+
+        final.append(
+            server
+        )
+
+    return final
+
+
+# ============================================================
+# SAVE JSON
+# ============================================================
+
+def save_json(
+    servers
+):
+
+    os.makedirs(
+        os.path.dirname(
+            JSON_OUTPUT
+        ),
+        exist_ok=True
+    )
+
+    payload = {
+        "version": 5,
+        "generated_at": utc_now(),
+        "count": len(servers),
+        "servers": servers
+    }
+
+    with open(
+        JSON_OUTPUT,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            payload,
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
+
+
+# ============================================================
+# SAVE CSV
+# ============================================================
+
+def save_csv(
+    servers
+):
+
+    os.makedirs(
+        os.path.dirname(
+            CSV_OUTPUT
+        ),
+        exist_ok=True
+    )
+
+    fields = [
+        "id",
+        "source",
+        "country",
+        "country_name",
+        "hostname",
+        "ip",
+        "protocol",
+        "port",
+        "speed_mbps",
+        "ping_ms",
+        "username",
+        "password",
+        "config_auth",
+        "profile",
+        "last_checked_at",
+        "last_updated",
+    ]
+
+    with open(
+        CSV_OUTPUT,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as f:
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=fields
+        )
+
+        writer.writeheader()
+
+        for server in servers:
+
+            writer.writerow({
+                field: server.get(
+                    field,
+                    ""
+                )
+                for field in fields
+            })
+
+
+# ============================================================
+# SORT
+# ============================================================
+
+def server_sort_key(
+    server
+):
+    ping = to_float(
+        server.get(
+            "ping_ms"
+        )
+    )
+
+    speed = to_float(
+        server.get(
+            "speed_mbps"
+        )
+    )
+
+    source = server.get(
+        "source",
+        ""
+    )
+
+    # Lower ping first, then higher speed.
+    return (
+        ping if ping > 0 else 999999,
+        -speed,
+        source
+    )
+
+
+# ============================================================
+# MAIN
 # ============================================================
 
 def main():
-    print("========================================")
-    print("🚀 REALTIME Multi-Source VPN Fetcher")
-    print("========================================")
 
-    # 1. Gather all candidates
-    candidates = []
-    
-    vpngate_list = fetch_vpngate_servers()
-    print(f"📥 Pulled {len(vpngate_list)} candidates from VPN Gate")
-    candidates.extend(vpngate_list)
+    print(
+        "=============================================="
+    )
 
-    vpnbook_list = fetch_vpnbook_servers()
-    print(f"📥 Pulled {len(vpnbook_list)} candidates from VPNBook")
-    candidates.extend(vpnbook_list)
+    print(
+        "🚀 StVPN Public OpenVPN Updater"
+    )
+
+    print(
+        "   PublicVPNList + VPNBook"
+    )
+
+    print(
+        "=============================================="
+    )
+
+    session = make_session()
+
+    # --------------------------------------------------------
+    # PublicVPNList
+    # --------------------------------------------------------
+
+    api_servers = (
+        fetch_publicvpn_api(
+            session
+        )
+    )
+
+    export_servers = (
+        fetch_publicvpn_export(
+            session
+        )
+    )
+
+    public_servers = (
+        merge_publicvpn_sources(
+            api_servers,
+            export_servers
+        )
+    )
+
+    # --------------------------------------------------------
+    # VPNBook
+    # --------------------------------------------------------
+
+    vpnbook_servers = (
+        fetch_vpnbook_servers(
+            session
+        )
+    )
+
+    candidates = (
+        public_servers
+        + vpnbook_servers
+    )
+
+    # --------------------------------------------------------
+    # Deduplicate
+    # --------------------------------------------------------
+
+    unique = {}
+
+    for server in candidates:
+
+        key = (
+            server.get(
+                "ip"
+            )
+            or server.get(
+                "hostname"
+            ),
+            to_int(
+                server.get(
+                    "port"
+                )
+            ),
+            clean(
+                server.get(
+                    "protocol"
+                )
+            ).lower()
+        )
+
+        if key not in unique:
+            unique[key] = server
+
+    candidates = list(
+        unique.values()
+    )
+
+    print(
+        f"\n📦 Total candidates: "
+        f"{len(candidates)}"
+    )
 
     if not candidates:
-        print("❌ No VPN candidates found across all sources.")
+
+        print(
+            "❌ No VPN candidates."
+        )
+
         return 1
 
-    # 2. Strict Real-time Socket Connection Filter
-    active_servers = filter_only_active_servers(candidates)
+    # --------------------------------------------------------
+    # Realtime TCP
+    # --------------------------------------------------------
 
-    if not active_servers:
-        print("❌ CRITICAL: Zero active servers passed the real-time socket check!")
+    active = filter_active(
+        candidates
+    )
+
+    if not active:
+
+        print(
+            "❌ No realtime active "
+            "servers found."
+        )
+
         return 1
 
-    # 3. Clean up directory & Write Profiles
-    if os.path.exists(PROFILE_DIR):
-        shutil.rmtree(PROFILE_DIR)
-    os.makedirs(PROFILE_DIR, exist_ok=True)
+    # --------------------------------------------------------
+    # Download PublicVPNList profiles
+    # --------------------------------------------------------
 
-    final_server_list = []
-    generated_at = utc_now()
+    active = (
+        acquire_publicvpn_profiles(
+            session,
+            active
+        )
+    )
 
-    for s in active_servers:
-        safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "_", s["hostname"] or s["ip"])
-        filename = f"{s['source'].lower()}_{safe_name}_{s['port']}_{s['protocol']}.ovpn"
-        filepath = os.path.join(PROFILE_DIR, filename)
+    if not active:
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(s["profile_content"])
+        print(
+            "❌ No usable OpenVPN profiles."
+        )
 
-        s["profile"] = f"profiles/{filename}"
-        s["last_updated"] = generated_at
-        del s["profile_content"]  # Clean up memory
-        final_server_list.append(s)
+        return 1
 
-    # Sort by lowest latency
-    final_server_list.sort(key=lambda x: x["ping_ms"])
+    # --------------------------------------------------------
+    # Sort
+    # --------------------------------------------------------
 
-    # 4. Save CSV & JSON
-    os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
-    os.makedirs(os.path.dirname(JSON_OUTPUT), exist_ok=True)
+    active.sort(
+        key=server_sort_key
+    )
 
-    fields = [
-        "id", "source", "country", "country_name", "hostname", "ip",
-        "protocol", "port", "speed_mbps", "ping_ms", "username",
-        "password", "profile", "last_updated"
-    ]
+    # --------------------------------------------------------
+    # Save .ovpn
+    # --------------------------------------------------------
 
-    with open(CSV_OUTPUT, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        for row in final_server_list:
-            writer.writerow({k: row.get(k, "") for k in fields})
+    final_servers = save_profiles(
+        active
+    )
 
-    payload = {
-        "version": 3,
-        "generated_at": generated_at,
-        "count": len(final_server_list),
-        "servers": final_server_list,
-    }
+    if not final_servers:
 
-    with open(JSON_OUTPUT, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+        print(
+            "❌ No profiles were saved."
+        )
 
-    print(f"\n🎉 SUCCESS: {len(final_server_list)} ACTIVE REAL-TIME SERVERS SAVED.")
-    print(f"📁 CSV: {CSV_OUTPUT}")
-    print(f"📁 JSON: {JSON_OUTPUT}")
+        return 1
+
+    # --------------------------------------------------------
+    # Save JSON / CSV
+    # --------------------------------------------------------
+
+    save_json(
+        final_servers
+    )
+
+    save_csv(
+        final_servers
+    )
+
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
+
+    print(
+        "\n=============================================="
+    )
+
+    print(
+        f"🎉 SUCCESS"
+    )
+
+    print(
+        f"🟢 Active profiles: "
+        f"{len(final_servers)}"
+    )
+
+    print(
+        f"📄 {JSON_OUTPUT}"
+    )
+
+    print(
+        f"📄 {CSV_OUTPUT}"
+    )
+
+    print(
+        f"📁 {PROFILE_DIR}/"
+    )
+
+    print(
+        "=============================================="
+    )
+
+    for index, server in enumerate(
+        final_servers[:30],
+        1
+    ):
+
+        print(
+            f"{index:02d}. "
+            f"{server.get('country')} "
+            f"{server.get('ip') or server.get('hostname')}:"
+            f"{server.get('port')} "
+            f"{server.get('protocol')} "
+            f"{server.get('ping_ms')}ms "
+            f"{server.get('speed_mbps')}Mbps "
+            f"[{server.get('source')}] "
+            f"auth={server.get('config_auth')}"
+        )
+
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(
+        main()
+    )
