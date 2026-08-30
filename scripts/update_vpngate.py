@@ -3,7 +3,6 @@
 
 import base64
 import csv
-import io
 import json
 import os
 import re
@@ -14,41 +13,35 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-import requests
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Optional dependency safeguard
+try:
+    import requests
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except ImportError:
+    print("❌ Error: 'requests' library is missing. Please run 'pip install requests'")
+    sys.exit(0)
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
 PUBLICVPN_API = "https://publicvpnlist.com/api/v1/servers"
-PUBLICVPN_EXPORT = "https://publicvpnlist.com/exports/openvpn-latest.json"
-VPNBOOK_URL = "https://www.vpnbook.com/freevpn/openvpn"
 VPNGATE_API = "http://www.vpngate.net/api/iphone/"
 
 CSV_OUTPUT = "data/servers.csv"
 JSON_OUTPUT = "data/servers.json"
 PROFILE_DIR = "data/profiles"
 
-REQUEST_TIMEOUT = 15
-TEST_TIMEOUT = 3.0
+REQUEST_TIMEOUT = 12
+TEST_TIMEOUT = 2.5
 MAX_WORKERS = 20
 
-FRESH_WITHIN = 259200
-MIN_SPEED_MBPS = 0.5
-MAX_LATENCY_MS = 1000
-
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0"
 
 def make_session():
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-    })
+    session.headers.update({"User-Agent": USER_AGENT})
     return session
 
 def utc_now():
@@ -57,29 +50,17 @@ def utc_now():
 def clean(value):
     return str(value).strip() if value is not None else ""
 
-def to_float(value):
-    try:
-        return float(str(value).replace(",", "").strip()) if value is not None else 0.0
-    except (ValueError, TypeError):
-        return 0.0
-
-def to_int(value):
-    try:
-        return int(float(str(value).replace(",", "").strip()))
-    except (ValueError, TypeError):
-        return 0
-
 def safe_filename(value):
     value = clean(value)
     value = re.sub(r"[^a-zA-Z0-9._-]+", "_", value)
     return value[:120] or "server"
 
 # ============================================================
-# VPNGATE SOURCE (BACKUP SOURCE FOR GITHUB ACTIONS)
+# FETCHERS
 # ============================================================
 
 def fetch_vpngate_servers(session):
-    print("\n🌐 Fetching VPNGate Mirror...")
+    print("\n🌐 Fetching VPNGate API...")
     servers = []
     try:
         res = session.get(VPNGATE_API, timeout=REQUEST_TIMEOUT)
@@ -107,6 +88,129 @@ def fetch_vpngate_servers(session):
 
             proto = "udp" if "proto udp" in ovpn_profile.lower() else "tcp"
             port_match = re.search(r"remote\s+\S+\s+(\d+)", ovpn_profile, re.IGNORECASE)
+            port = int(port_match.group(1)) if port_match else 1194
+
+            if "redirect-gateway" not in ovpn_profile:
+                ovpn_profile += "\nredirect-gateway def1\n"
+            if "dhcp-option DNS" not in ovpn_profile:
+                ovpn_profile += "\ndhcp-option DNS 8.8.8.8\ndhcp-option DNS 1.1.1.1\n"
+
+            servers.append({
+                "source": "VPNGate",
+                "id": f"vpngate_{ip}_{port}",
+                "country": clean(row.get("CountryShort")) or "UN",
+                "country_name": clean(row.get("CountryLong")) or "Unknown",
+                "hostname": host or ip,
+                "ip": ip,
+                "protocol": proto,
+                "port": port,
+                "speed_mbps": round(float(row.get("Speed", 0) or 0) / 1000000.0, 2),
+                "ping_ms": float(row.get("Ping", 0) or 0),
+                "username": "",
+                "password": "",
+                "profile_content": ovpn_profile,
+                "config_auth": "none"
+            })
+    except Exception as e:
+        print(f"⚠️ VPNGate Error: {e}")
+
+    print(f"📥 VPNGate candidates: {len(servers)}")
+    return servers
+
+def test_realtime(server):
+    host = server.get("ip") or server.get("hostname")
+    port = int(server.get("port", 0))
+    proto = clean(server.get("protocol")).lower()
+
+    if not host or port <= 0:
+        return None
+
+    if proto == "udp":
+        return server
+
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(TEST_TIMEOUT)
+        if sock.connect_ex((host, port)) == 0:
+            return server
+    except Exception:
+        return None
+    finally:
+        if sock:
+            sock.close()
+    return None
+
+def save_profiles(servers):
+    if os.path.exists(PROFILE_DIR):
+        shutil.rmtree(PROFILE_DIR)
+    os.makedirs(PROFILE_DIR, exist_ok=True)
+
+    final = []
+    for server in servers:
+        profile = clean(server.get("profile_content"))
+        if not profile:
+            continue
+
+        host = server.get("hostname") or server.get("ip") or "server"
+        source = safe_filename(server.get("source", "vpn").lower())
+        filename = f"{source}_{safe_filename(host)}_{server.get('port')}_{server.get('protocol')}.ovpn"
+        filepath = os.path.join(PROFILE_DIR, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(profile.rstrip() + "\n")
+
+        server["profile"] = f"profiles/{filename}"
+        server["last_updated"] = utc_now()
+        server.pop("profile_content", None)
+        final.append(server)
+
+    return final
+
+# ============================================================
+# MAIN EXECUTION
+# ============================================================
+
+def main():
+    try:
+        print("🚀 StVPN Server Updater Running...")
+        session = make_session()
+
+        candidates = fetch_vpngate_servers(session)
+
+        if not candidates:
+            print("⚠️ No candidates retrieved. Exiting gracefully.")
+            return 0
+
+        active = []
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(test_realtime, s) for s in candidates]
+            for future in as_completed(futures):
+                res = future.result()
+                if res:
+                    active.append(res)
+
+        print(f"✅ Active servers filtered: {len(active)}")
+
+        if not active:
+            print("⚠️ No active servers passed test.")
+            return 0
+
+        final_servers = save_profiles(active)
+
+        os.makedirs(os.path.dirname(JSON_OUTPUT), exist_ok=True)
+        with open(JSON_OUTPUT, "w", encoding="utf-8") as f:
+            json.dump({"version": 5, "generated_at": utc_now(), "count": len(final_servers), "servers": final_servers}, f, indent=2, ensure_ascii=False)
+
+        print(f"🎉 SUCCESS: Successfully updated {len(final_servers)} profiles!")
+        return 0
+
+    except Exception as exc:
+        print(f"⚠️ Unexpected Runtime Error: {exc}")
+        return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
             port = int(port_match.group(1)) if port_match else 1194
 
             # Ensure Routing & DNS Settings
