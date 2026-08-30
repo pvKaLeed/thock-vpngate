@@ -2,60 +2,32 @@ name: Update VPN Servers
 
 on:
   schedule:
-    # Every hour at minute 0 (UTC)
-    - cron: '0 * * * *'
-
-  # Allow manual run from GitHub Actions
+    - cron: '0 */6 * * *' # 6 နာရီတစ်ကြိမ် Auto Run မည်
   workflow_dispatch:
 
 jobs:
   update-servers:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests urllib3
 
-      - name: Run VPN server updater
+      - name: Run Update Script
+        run: python update_servers.py
+
+      - name: Commit & Push Changes
         run: |
-          python scripts/update_vpngate.py
-
-      - name: Check generated files
-        run: |
-          echo "=== servers.json ==="
-          test -f data/servers.json
-          cat data/servers.json
-
-          echo ""
-          echo "=== profiles ==="
-          find data/profiles -type f -name "*.ovpn" | sort
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "GitHub Action"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add data/
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Auto-update VPN servers"
-            git push
-          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update VPN servers" && git push)
