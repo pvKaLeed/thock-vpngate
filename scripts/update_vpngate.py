@@ -233,6 +233,47 @@ def profile_requires_auth(profile):
 
 
 # ============================================================
+# CONVERT TO INLINE AUTH
+# ============================================================
+
+def convert_to_inline_auth(profile, username, password):
+    """
+    Convert auth-user-pass to inline format:
+    
+        <auth-user-pass>
+        username
+        password
+        </auth-user-pass>
+    """
+    if not profile or not username or not password:
+        return profile
+    
+    lines = profile.split("\n")
+    modified_lines = []
+    auth_found = False
+    
+    for line in lines:
+        # Check if line is auth-user-pass
+        if line.strip().startswith("auth-user-pass") and not auth_found:
+            auth_found = True
+            modified_lines.append("<auth-user-pass>")
+            modified_lines.append(username)
+            modified_lines.append(password)
+            modified_lines.append("</auth-user-pass>")
+        else:
+            modified_lines.append(line)
+    
+    # If auth-user-pass not found, add it at the end
+    if not auth_found:
+        modified_lines.append("<auth-user-pass>")
+        modified_lines.append(username)
+        modified_lines.append(password)
+        modified_lines.append("</auth-user-pass>")
+    
+    return "\n".join(modified_lines)
+
+
+# ============================================================
 # VPNBOOK
 # ============================================================
 
@@ -399,6 +440,7 @@ def fetch_vpnbook_servers(session):
 
         host = node["host"]
 
+        # Create profile with inline auth
         profile = (
             "client\n"
             "dev tun\n"
@@ -409,10 +451,12 @@ def fetch_vpnbook_servers(session):
             "persist-key\n"
             "persist-tun\n"
             "remote-cert-tls server\n"
-            "auth-user-pass\n"
             "auth-nocache\n"
             "verb 3\n"
         )
+
+        # Add inline auth
+        profile = convert_to_inline_auth(profile, username, password)
 
         servers.append({
             "source": "VPNBook",
@@ -428,7 +472,7 @@ def fetch_vpnbook_servers(session):
             "username": username,
             "password": password,
             "profile_content": profile,
-            "config_auth": "username_password",
+            "config_auth": "embedded",
         })
 
     print(
@@ -1221,29 +1265,16 @@ def acquire_publicvpn_profiles(
             )
         )
 
-        server["profile_content"] = (
-            profile
-        )
+        # Convert to inline auth if credentials found
+        if username and password:
+            profile = convert_to_inline_auth(profile, username, password)
+            server["config_auth"] = "embedded"
+        else:
+            server["config_auth"] = "required" if profile_requires_auth(profile) else "none"
 
-        server["username"] = (
-            username
-        )
-
-        server["password"] = (
-            password
-        )
-
-        server["config_auth"] = (
-            "embedded"
-            if username and password
-            else (
-                "required"
-                if profile_requires_auth(
-                    profile
-                )
-                else "none"
-            )
-        )
+        server["profile_content"] = profile
+        server["username"] = username
+        server["password"] = password
 
         result.append(
             server
@@ -1290,6 +1321,19 @@ def save_profiles(
 
         if not profile:
             continue
+
+        # ============================================================
+        # NEW: Convert to inline auth if not already
+        # ============================================================
+        username = server.get("username", "")
+        password = server.get("password", "")
+        
+        if username and password:
+            # Check if already has inline auth
+            if "<auth-user-pass>" not in profile:
+                profile = convert_to_inline_auth(profile, username, password)
+                server["config_auth"] = "embedded"
+        # ============================================================
 
         host = (
             server.get("hostname")
