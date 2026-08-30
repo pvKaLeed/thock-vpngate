@@ -1,78 +1,78 @@
 id,source,country,country_name,hostname,ip,protocol,port,speed_mbps,ping_ms,username,password,profile,last_updated
-vpnbook_us1.vpnbook.com_443,VPNBook,US,United States,us1.vpnbook.com,198.27.70.18,tcp,443,10.0,14.59,vpnbook,vpnbook,profiles/vpnbook_us1.vpnbook.com_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_73.131.220.236_1649,VPNGate,US,United States,vpn294043338,73.131.220.236,tcp,1649,0.0,61.9,vpn,vpn,profiles/vpngate_vpn294043338_1649_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.1_443,VPNGate,JP,Japan,public-vpn-37,219.100.37.1,tcp,443,416.09,156.63,vpn,vpn,profiles/vpngate_public-vpn-37_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.213_443,VPNGate,JP,Japan,public-vpn-200,219.100.37.213,tcp,443,334.07,157.19,vpn,vpn,profiles/vpngate_public-vpn-200_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.109_443,VPNGate,JP,Japan,public-vpn-153,219.100.37.109,tcp,443,435.39,157.81,vpn,vpn,profiles/vpngate_public-vpn-153_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.191_443,VPNGate,JP,Japan,public-vpn-236,219.100.37.191,tcp,443,423.02,158.2,vpn,vpn,profiles/vpngate_public-vpn-236_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.108_443,VPNGate,JP,Japan,public-vpn-150,219.100.37.108,tcp,443,313.17,158.51,vpn,vpn,profiles/vpngate_public-vpn-150_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.217_443,VPNGate,JP,Japan,public-vpn-229,219.100.37.217,tcp,443,1270.84,159.17,vpn,vpn,profiles/vpngate_public-vpn-229_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_118.156.222.242_1940,VPNGate,JP,Japan,vpn108030929,118.156.222.242,tcp,1940,94.99,159.29,vpn,vpn,profiles/vpngate_vpn108030929_1940_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_90.149.85.59_1360,VPNGate,JP,Japan,vpn744032933,90.149.85.59,tcp,1360,914.22,159.48,vpn,vpn,profiles/vpngate_vpn744032933_1360_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.7_443,VPNGate,JP,Japan,public-vpn-43,219.100.37.7,tcp,443,301.82,159.5,vpn,vpn,profiles/vpngate_public-vpn-43_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_106.150.173.34_1785,VPNGate,JP,Japan,vpn603665630,106.150.173.34,tcp,1785,682.15,159.8,vpn,vpn,profiles/vpngate_vpn603665630_1785_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.22_443,VPNGate,JP,Japan,public-vpn-72,219.100.37.22,tcp,443,389.64,160.31,vpn,vpn,profiles/vpngate_public-vpn-72_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.4_443,VPNGate,JP,Japan,public-vpn-40,219.100.37.4,tcp,443,470.73,160.4,vpn,vpn,profiles/vpngate_public-vpn-40_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.125_443,VPNGate,JP,Japan,public-vpn-162,219.100.37.125,tcp,443,296.43,160.74,vpn,vpn,profiles/vpngate_public-vpn-162_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.19.76.182_1820,VPNGate,JP,Japan,vpn671350283,211.19.76.182,tcp,1820,294.42,161.29,vpn,vpn,profiles/vpngate_vpn671350283_1820_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.90_443,VPNGate,JP,Japan,public-vpn-130,219.100.37.90,tcp,443,313.16,161.94,vpn,vpn,profiles/vpngate_public-vpn-130_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_106.136.144.232_1742,VPNGate,JP,Japan,vpn872750847,106.136.144.232,tcp,1742,86.93,161.99,vpn,vpn,profiles/vpngate_vpn872750847_1742_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.19_443,VPNGate,JP,Japan,public-vpn-54,219.100.37.19,tcp,443,809.42,162.14,vpn,vpn,profiles/vpngate_public-vpn-54_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.211_443,VPNGate,JP,Japan,public-vpn-197,219.100.37.211,tcp,443,215.88,162.16,vpn,vpn,profiles/vpngate_public-vpn-197_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.58_443,VPNGate,JP,Japan,public-vpn-104,219.100.37.58,tcp,443,288.67,162.17,vpn,vpn,profiles/vpngate_public-vpn-104_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.109.181.23_1527,VPNGate,JP,Japan,vpn114623382,121.109.181.23,tcp,1527,83.53,162.52,vpn,vpn,profiles/vpngate_vpn114623382_1527_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.116_443,VPNGate,JP,Japan,public-vpn-137,219.100.37.116,tcp,443,1303.6,162.8,vpn,vpn,profiles/vpngate_public-vpn-137_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_115.37.230.116_1629,VPNGate,JP,Japan,vpn873672178,115.37.230.116,tcp,1629,801.28,163.71,vpn,vpn,profiles/vpngate_vpn873672178_1629_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_219.100.37.50_443,VPNGate,JP,Japan,public-vpn-76,219.100.37.50,tcp,443,568.0,164.49,vpn,vpn,profiles/vpngate_public-vpn-76_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_37.195.208.25_1640,VPNGate,RU,Russian Federation,vpn638506000,37.195.208.25,tcp,1640,121.42,165.07,vpn,vpn,profiles/vpngate_vpn638506000_1640_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_113.155.2.119_1779,VPNGate,JP,Japan,vpn301974541,113.155.2.119,tcp,1779,976.37,165.34,vpn,vpn,profiles/vpngate_vpn301974541_1779_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_119.224.221.130_1462,VPNGate,JP,Japan,vpn842207532,119.224.221.130,tcp,1462,146.06,167.46,vpn,vpn,profiles/vpngate_vpn842207532_1462_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_45.75.83.95_1310,VPNGate,JP,Japan,vpn929095050,45.75.83.95,tcp,1310,306.56,167.69,vpn,vpn,profiles/vpngate_vpn929095050_1310_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_126.79.197.198_1684,VPNGate,JP,Japan,vpn851717986,126.79.197.198,tcp,1684,333.85,168.63,vpn,vpn,profiles/vpngate_vpn851717986_1684_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_182.171.116.240_1255,VPNGate,JP,Japan,vpn418123746,182.171.116.240,tcp,1255,822.43,168.71,vpn,vpn,profiles/vpngate_vpn418123746_1255_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_114.189.166.239_1549,VPNGate,JP,Japan,vpn675471424,114.189.166.239,tcp,1549,316.2,169.73,vpn,vpn,profiles/vpngate_vpn675471424_1549_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_60.107.31.32_1314,VPNGate,JP,Japan,vpn382365411,60.107.31.32,tcp,1314,90.96,169.89,vpn,vpn,profiles/vpngate_vpn382365411_1314_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_153.232.247.195_1730,VPNGate,JP,Japan,vpn486662942,153.232.247.195,tcp,1730,352.51,170.64,vpn,vpn,profiles/vpngate_vpn486662942_1730_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_217.138.212.62_443,VPNGate,RO,Romania,opengw,217.138.212.62,tcp,443,92.83,172.4,vpn,vpn,profiles/vpngate_opengw_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_175.134.228.229_1558,VPNGate,JP,Japan,vpn712951432,175.134.228.229,tcp,1558,223.72,175.73,vpn,vpn,profiles/vpngate_vpn712951432_1558_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_126.95.138.56_1304,VPNGate,JP,Japan,vpn275871013,126.95.138.56,tcp,1304,128.04,176.61,vpn,vpn,profiles/vpngate_vpn275871013_1304_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_60.147.198.161_1571,VPNGate,JP,Japan,vpn821863781,60.147.198.161,tcp,1571,33.22,178.21,vpn,vpn,profiles/vpngate_vpn821863781_1571_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_115.179.206.241_443,VPNGate,JP,Japan,laud,115.179.206.241,tcp,443,62.02,179.2,vpn,vpn,profiles/vpngate_laud_443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_59.133.158.94_992,VPNGate,JP,Japan,kanratown,59.133.158.94,tcp,992,446.66,179.79,vpn,vpn,profiles/vpngate_kanratown_992_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.172.79.131_1998,VPNGate,KR,Korea Republic of,vpn388296681,121.172.79.131,tcp,1998,757.7,180.97,vpn,vpn,profiles/vpngate_vpn388296681_1998_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.135.117.125_995,VPNGate,KR,Korea Republic of,vpn762463221,121.135.117.125,tcp,995,652.7,181.46,vpn,vpn,profiles/vpngate_vpn762463221_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_1.247.139.230_1599,VPNGate,KR,Korea Republic of,vpn245217894,1.247.139.230,tcp,1599,429.81,183.17,vpn,vpn,profiles/vpngate_vpn245217894_1599_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_221.151.149.159_1792,VPNGate,KR,Korea Republic of,vpn314046814,221.151.149.159,tcp,1792,41.65,183.35,vpn,vpn,profiles/vpngate_vpn314046814_1792_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.216.232.155_1663,VPNGate,KR,Korea Republic of,vpn616029501,211.216.232.155,tcp,1663,70.95,183.42,vpn,vpn,profiles/vpngate_vpn616029501_1663_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_220.73.241.82_1679,VPNGate,KR,Korea Republic of,vpn362987445,220.73.241.82,tcp,1679,25.44,183.7,vpn,vpn,profiles/vpngate_vpn362987445_1679_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_125.129.80.24_995,VPNGate,KR,Korea Republic of,vpn441058411,125.129.80.24,tcp,995,85.35,183.91,vpn,vpn,profiles/vpngate_vpn441058411_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.189.247.124_1782,VPNGate,KR,Korea Republic of,vpn259327943,121.189.247.124,tcp,1782,70.75,184.36,vpn,vpn,profiles/vpngate_vpn259327943_1782_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_14.56.110.143_1446,VPNGate,KR,Korea Republic of,vpn414350235,14.56.110.143,tcp,1446,96.42,184.93,vpn,vpn,profiles/vpngate_vpn414350235_1446_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.227.163.73_995,VPNGate,KR,Korea Republic of,vpn390941300,211.227.163.73,tcp,995,122.41,184.94,vpn,vpn,profiles/vpngate_vpn390941300_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_119.203.168.184_995,VPNGate,KR,Korea Republic of,vpn558340466,119.203.168.184,tcp,995,140.09,184.98,vpn,vpn,profiles/vpngate_vpn558340466_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_221.165.101.47_995,VPNGate,KR,Korea Republic of,vpn324924226,221.165.101.47,tcp,995,441.88,185.02,vpn,vpn,profiles/vpngate_vpn324924226_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_210.99.65.21_1986,VPNGate,KR,Korea Republic of,vpn233431174,210.99.65.21,tcp,1986,101.47,185.04,vpn,vpn,profiles/vpngate_vpn233431174_1986_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_95.170.177.6_1846,VPNGate,RU,Russian Federation,vpn506408150,95.170.177.6,tcp,1846,214.8,185.06,vpn,vpn,profiles/vpngate_vpn506408150_1846_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.198.63.122_1805,VPNGate,KR,Korea Republic of,vpn335689563,211.198.63.122,tcp,1805,100.69,185.16,vpn,vpn,profiles/vpngate_vpn335689563_1805_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_218.237.79.121_1934,VPNGate,KR,Korea Republic of,vpn696655782,218.237.79.121,tcp,1934,89.35,185.46,vpn,vpn,profiles/vpngate_vpn696655782_1934_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_119.195.254.240_1414,VPNGate,KR,Korea Republic of,vpn783575401,119.195.254.240,tcp,1414,58.02,185.5,vpn,vpn,profiles/vpngate_vpn783575401_1414_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_61.254.70.83_995,VPNGate,KR,Korea Republic of,vpn386579301,61.254.70.83,tcp,995,102.35,185.57,vpn,vpn,profiles/vpngate_vpn386579301_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.128.125.38_1862,VPNGate,KR,Korea Republic of,vpn534929434,121.128.125.38,tcp,1862,95.24,185.95,vpn,vpn,profiles/vpngate_vpn534929434_1862_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.154.192.103_995,VPNGate,KR,Korea Republic of,vpn378514663,121.154.192.103,tcp,995,79.76,186.37,vpn,vpn,profiles/vpngate_vpn378514663_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.140.54.84_995,VPNGate,KR,Korea Republic of,vpn847863469,121.140.54.84,tcp,995,415.36,186.67,vpn,vpn,profiles/vpngate_vpn847863469_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_112.185.17.25_1873,VPNGate,KR,Korea Republic of,vpn822945679,112.185.17.25,tcp,1873,176.76,186.91,vpn,vpn,profiles/vpngate_vpn822945679_1873_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_121.169.168.68_1795,VPNGate,KR,Korea Republic of,vpn832579312,121.169.168.68,tcp,1795,61.26,186.93,vpn,vpn,profiles/vpngate_vpn832579312_1795_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.108.145.135_1844,VPNGate,KR,Korea Republic of,vpn633644012,211.108.145.135,tcp,1844,63.87,186.95,vpn,vpn,profiles/vpngate_vpn633644012_1844_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.245.214.227_1406,VPNGate,KR,Korea Republic of,vpn259391927,211.245.214.227,tcp,1406,89.75,189.77,vpn,vpn,profiles/vpngate_vpn259391927_1406_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_118.40.122.228_1840,VPNGate,KR,Korea Republic of,vpn989011939,118.40.122.228,tcp,1840,40.07,190.42,vpn,vpn,profiles/vpngate_vpn989011939_1840_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_5.189.196.204_1283,VPNGate,RU,Russian Federation,vpn122714670,5.189.196.204,tcp,1283,24.52,192.06,vpn,vpn,profiles/vpngate_vpn122714670_1283_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_140.111.148.17_992,VPNGate,TW,Taiwan,vpn713264157,140.111.148.17,tcp,992,252.48,192.7,vpn,vpn,profiles/vpngate_vpn713264157_992_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_211.250.14.149_995,VPNGate,KR,Korea Republic of,vpn865695918,211.250.14.149,tcp,995,75.49,202.87,vpn,vpn,profiles/vpngate_vpn865695918_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_87.225.91.15_1836,VPNGate,RU,Russian Federation,vpn814151663,87.225.91.15,tcp,1836,34.14,206.86,vpn,vpn,profiles/vpngate_vpn814151663_1836_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_203.165.78.62_1472,VPNGate,JP,Japan,vpn715779327,203.165.78.62,tcp,1472,555.35,209.64,vpn,vpn,profiles/vpngate_vpn715779327_1472_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_150.31.159.180_1970,VPNGate,JP,Japan,vpn638897160,150.31.159.180,tcp,1970,54.71,213.97,vpn,vpn,profiles/vpngate_vpn638897160_1970_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_77.35.75.163_1858,VPNGate,RU,Russian Federation,vpn432636439,77.35.75.163,tcp,1858,63.79,216.25,vpn,vpn,profiles/vpngate_vpn432636439_1858_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_31.200.224.121_995,VPNGate,RU,Russian Federation,vpn902069438,31.200.224.121,tcp,995,61.44,218.39,vpn,vpn,profiles/vpngate_vpn902069438_995_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_171.242.40.169_1730,VPNGate,VN,Viet Nam,vpn108223798,171.242.40.169,tcp,1730,248.77,236.89,vpn,vpn,profiles/vpngate_vpn108223798_1730_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_58.136.230.114_1643,VPNGate,TH,Thailand,vpn798556933,58.136.230.114,tcp,1643,252.9,251.24,vpn,vpn,profiles/vpngate_vpn798556933_1643_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
-vpngate_42.119.215.186_1443,VPNGate,VN,Viet Nam,vpn182757269,42.119.215.186,tcp,1443,38.21,266.91,vpn,vpn,profiles/vpngate_vpn182757269_1443_tcp.ovpn,2026-08-29T08:46:46.289645+00:00
+vpnbook_us1.vpnbook.com_443,VPNBook,US,United States,us1.vpnbook.com,198.27.70.18,tcp,443,10.0,15.17,vpnbook,vpnbook,profiles/vpnbook_us1.vpnbook.com_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_15.218.123.86_1489,VPNGate,US,United States,vpn245324935,15.218.123.86,tcp,1489,357.82,72.42,vpn,vpn,profiles/vpngate_vpn245324935_1489_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_92.19.118.228_1750,VPNGate,GB,United Kingdom,patito,92.19.118.228,tcp,1750,26.57,91.71,vpn,vpn,profiles/vpngate_patito_1750_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_91.151.195.110_1642,VPNGate,RU,Russian Federation,vpn387099863,91.151.195.110,tcp,1642,146.18,110.8,vpn,vpn,profiles/vpngate_vpn387099863_1642_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_177.152.169.192_1311,VPNGate,BR,Brazil,vpn731000406,177.152.169.192,tcp,1311,86.14,129.63,vpn,vpn,profiles/vpngate_vpn731000406_1311_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.92_443,VPNGate,JP,Japan,public-vpn-136,219.100.37.92,tcp,443,399.7,157.93,vpn,vpn,profiles/vpngate_public-vpn-136_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.98_443,VPNGate,JP,Japan,public-vpn-108,219.100.37.98,tcp,443,794.98,158.79,vpn,vpn,profiles/vpngate_public-vpn-108_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.30_443,VPNGate,JP,Japan,public-vpn-88,219.100.37.30,tcp,443,266.84,158.91,vpn,vpn,profiles/vpngate_public-vpn-88_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.161_443,VPNGate,JP,Japan,public-vpn-183,219.100.37.161,tcp,443,1326.49,159.11,vpn,vpn,profiles/vpngate_public-vpn-183_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.187_443,VPNGate,JP,Japan,public-vpn-218,219.100.37.187,tcp,443,260.26,159.23,vpn,vpn,profiles/vpngate_public-vpn-218_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.172_443,VPNGate,JP,Japan,public-vpn-234,219.100.37.172,tcp,443,352.46,159.26,vpn,vpn,profiles/vpngate_public-vpn-234_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.117_443,VPNGate,JP,Japan,public-vpn-138,219.100.37.117,tcp,443,810.49,159.27,vpn,vpn,profiles/vpngate_public-vpn-138_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.10_443,VPNGate,JP,Japan,public-vpn-46,219.100.37.10,tcp,443,299.8,159.3,vpn,vpn,profiles/vpngate_public-vpn-46_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.125_443,VPNGate,JP,Japan,public-vpn-162,219.100.37.125,tcp,443,418.29,159.4,vpn,vpn,profiles/vpngate_public-vpn-162_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.5_443,VPNGate,JP,Japan,public-vpn-41,219.100.37.5,tcp,443,522.5,159.82,vpn,vpn,profiles/vpngate_public-vpn-41_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.62_443,VPNGate,JP,Japan,public-vpn-122,219.100.37.62,tcp,443,483.34,160.23,vpn,vpn,profiles/vpngate_public-vpn-122_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_219.100.37.221_443,VPNGate,JP,Japan,public-vpn-220,219.100.37.221,tcp,443,182.87,160.37,vpn,vpn,profiles/vpngate_public-vpn-220_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_175.132.127.244_1773,VPNGate,JP,Japan,vpn849985359,175.132.127.244,tcp,1773,207.4,160.79,vpn,vpn,profiles/vpngate_vpn849985359_1773_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_59.129.181.59_1743,VPNGate,JP,Japan,vpn928426686,59.129.181.59,tcp,1743,950.47,161.25,vpn,vpn,profiles/vpngate_vpn928426686_1743_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_153.134.150.194_1397,VPNGate,JP,Japan,vpn339013576,153.134.150.194,tcp,1397,394.85,161.94,vpn,vpn,profiles/vpngate_vpn339013576_1397_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_217.138.212.62_443,VPNGate,RO,Romania,opengw,217.138.212.62,tcp,443,198.83,163.42,vpn,vpn,profiles/vpngate_opengw_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_218.226.207.78_1505,VPNGate,JP,Japan,vpn970060519,218.226.207.78,tcp,1505,877.59,165.3,vpn,vpn,profiles/vpngate_vpn970060519_1505_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_180.200.61.144_1249,VPNGate,JP,Japan,vpn743669107,180.200.61.144,tcp,1249,936.78,166.31,vpn,vpn,profiles/vpngate_vpn743669107_1249_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_110.163.135.59_1194,VPNGate,JP,Japan,n26,110.163.135.59,tcp,1194,223.1,167.34,vpn,vpn,profiles/vpngate_n26_1194_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_59.133.158.94_992,VPNGate,JP,Japan,kanratown,59.133.158.94,tcp,992,570.38,168.59,vpn,vpn,profiles/vpngate_kanratown_992_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_153.228.233.88_1888,VPNGate,JP,Japan,vpn264304330,153.228.233.88,tcp,1888,75.69,168.61,vpn,vpn,profiles/vpngate_vpn264304330_1888_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_27.84.177.35_1686,VPNGate,JP,Japan,vpn942937653,27.84.177.35,tcp,1686,83.69,169.27,vpn,vpn,profiles/vpngate_vpn942937653_1686_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_60.101.164.215_1861,VPNGate,JP,Japan,vpn597991053,60.101.164.215,tcp,1861,316.11,170.02,vpn,vpn,profiles/vpngate_vpn597991053_1861_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_202.95.181.113_1335,VPNGate,JP,Japan,vpn121803808,202.95.181.113,tcp,1335,96.89,170.26,vpn,vpn,profiles/vpngate_vpn121803808_1335_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_221.45.120.53_1654,VPNGate,JP,Japan,vpn355319049,221.45.120.53,tcp,1654,923.64,171.46,vpn,vpn,profiles/vpngate_vpn355319049_1654_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_113.148.179.138_1779,VPNGate,JP,Japan,vpn600796684,113.148.179.138,tcp,1779,78.63,173.25,vpn,vpn,profiles/vpngate_vpn600796684_1779_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_221.103.33.126_1390,VPNGate,JP,Japan,vpn713508768,221.103.33.126,tcp,1390,758.32,173.95,vpn,vpn,profiles/vpngate_vpn713508768_1390_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_115.179.206.241_443,VPNGate,JP,Japan,laud,115.179.206.241,tcp,443,117.74,173.98,vpn,vpn,profiles/vpngate_laud_443_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_153.172.217.254_1734,VPNGate,JP,Japan,vpn238596130,153.172.217.254,tcp,1734,23.07,174.06,vpn,vpn,profiles/vpngate_vpn238596130_1734_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_126.171.177.77_1671,VPNGate,JP,Japan,vpn464496826,126.171.177.77,tcp,1671,223.15,176.42,vpn,vpn,profiles/vpngate_vpn464496826_1671_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_220.150.97.98_1864,VPNGate,JP,Japan,vpn357972043,220.150.97.98,tcp,1864,280.85,178.4,vpn,vpn,profiles/vpngate_vpn357972043_1864_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_124.247.181.10_1989,VPNGate,JP,Japan,vpn383624808,124.247.181.10,tcp,1989,668.01,178.59,vpn,vpn,profiles/vpngate_vpn383624808_1989_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_125.55.149.142_1648,VPNGate,JP,Japan,vpn882137641,125.55.149.142,tcp,1648,556.73,179.14,vpn,vpn,profiles/vpngate_vpn882137641_1648_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_126.219.0.177_1958,VPNGate,JP,Japan,vpn126377407,126.219.0.177,tcp,1958,219.59,179.42,vpn,vpn,profiles/vpngate_vpn126377407_1958_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_5.189.196.204_1283,VPNGate,RU,Russian Federation,vpn122714670,5.189.196.204,tcp,1283,29.13,179.64,vpn,vpn,profiles/vpngate_vpn122714670_1283_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_119.240.25.184_1749,VPNGate,JP,Japan,vpn832583593,119.240.25.184,tcp,1749,32.03,180.6,vpn,vpn,profiles/vpngate_vpn832583593_1749_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_180.50.165.53_1611,VPNGate,JP,Japan,vpn411789230,180.50.165.53,tcp,1611,369.77,180.62,vpn,vpn,profiles/vpngate_vpn411789230_1611_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_126.130.83.59_1581,VPNGate,JP,Japan,vpn285945182,126.130.83.59,tcp,1581,73.09,181.16,vpn,vpn,profiles/vpngate_vpn285945182_1581_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_221.168.128.107_1231,VPNGate,KR,Korea Republic of,vpn529583355,221.168.128.107,tcp,1231,284.03,182.07,vpn,vpn,profiles/vpngate_vpn529583355_1231_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_61.76.193.240_995,VPNGate,KR,Korea Republic of,vpn711658835,61.76.193.240,tcp,995,99.4,182.45,vpn,vpn,profiles/vpngate_vpn711658835_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_220.93.52.189_995,VPNGate,KR,Korea Republic of,vpn843265469,220.93.52.189,tcp,995,38.25,182.72,vpn,vpn,profiles/vpngate_vpn843265469_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_221.144.146.230_995,VPNGate,KR,Korea Republic of,vpn521065574,221.144.146.230,tcp,995,64.21,183.49,vpn,vpn,profiles/vpngate_vpn521065574_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_220.78.58.200_995,VPNGate,KR,Korea Republic of,vpn629152791,220.78.58.200,tcp,995,172.5,183.49,vpn,vpn,profiles/vpngate_vpn629152791_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_14.32.184.95_1681,VPNGate,KR,Korea Republic of,vpn707735930,14.32.184.95,tcp,1681,77.39,183.67,vpn,vpn,profiles/vpngate_vpn707735930_1681_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_211.195.236.113_995,VPNGate,KR,Korea Republic of,vpn250745126,211.195.236.113,tcp,995,95.18,183.93,vpn,vpn,profiles/vpngate_vpn250745126_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_183.98.37.140_1909,VPNGate,KR,Korea Republic of,vpn964995605,183.98.37.140,tcp,1909,25.44,184.13,vpn,vpn,profiles/vpngate_vpn964995605_1909_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_222.97.185.218_995,VPNGate,KR,Korea Republic of,vpn110532732,222.97.185.218,tcp,995,89.23,184.21,vpn,vpn,profiles/vpngate_vpn110532732_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_175.192.34.4_995,VPNGate,KR,Korea Republic of,vpn184908966,175.192.34.4,tcp,995,60.31,184.72,vpn,vpn,profiles/vpngate_vpn184908966_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_121.164.37.163_1672,VPNGate,KR,Korea Republic of,vpn913314755,121.164.37.163,tcp,1672,76.91,184.88,vpn,vpn,profiles/vpngate_vpn913314755_1672_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_125.136.55.213_995,VPNGate,KR,Korea Republic of,vpn421743167,125.136.55.213,tcp,995,102.2,185.35,vpn,vpn,profiles/vpngate_vpn421743167_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_118.218.226.247_1600,VPNGate,KR,Korea Republic of,vpn422806854,118.218.226.247,tcp,1600,440.45,185.77,vpn,vpn,profiles/vpngate_vpn422806854_1600_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_218.153.200.240_995,VPNGate,KR,Korea Republic of,vpn841769961,218.153.200.240,tcp,995,355.05,186.11,vpn,vpn,profiles/vpngate_vpn841769961_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_118.109.233.56_1797,VPNGate,JP,Japan,vpn765536599,118.109.233.56,tcp,1797,435.09,186.37,vpn,vpn,profiles/vpngate_vpn765536599_1797_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_221.158.213.241_1833,VPNGate,KR,Korea Republic of,vpn403790020,221.158.213.241,tcp,1833,17.77,186.42,vpn,vpn,profiles/vpngate_vpn403790020_1833_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_121.147.115.120_995,VPNGate,KR,Korea Republic of,vpn515098589,121.147.115.120,tcp,995,93.27,187.68,vpn,vpn,profiles/vpngate_vpn515098589_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_211.213.226.149_1598,VPNGate,KR,Korea Republic of,vpn867088117,211.213.226.149,tcp,1598,456.41,188.15,vpn,vpn,profiles/vpngate_vpn867088117_1598_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_61.72.189.181_995,VPNGate,KR,Korea Republic of,vpn573567832,61.72.189.181,tcp,995,82.45,188.88,vpn,vpn,profiles/vpngate_vpn573567832_995_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_124.216.139.195_1391,VPNGate,KR,Korea Republic of,vpn965997853,124.216.139.195,tcp,1391,44.88,189.06,vpn,vpn,profiles/vpngate_vpn965997853_1391_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_60.46.252.125_1735,VPNGate,JP,Japan,vpn923521013,60.46.252.125,tcp,1735,182.67,189.34,vpn,vpn,profiles/vpngate_vpn923521013_1735_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_140.111.148.17_992,VPNGate,TW,Taiwan,vpn713264157,140.111.148.17,tcp,992,461.51,190.51,vpn,vpn,profiles/vpngate_vpn713264157_992_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_14.92.210.132_1676,VPNGate,KR,Korea Republic of,vpn265457647,14.92.210.132,tcp,1676,97.65,190.6,vpn,vpn,profiles/vpngate_vpn265457647_1676_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_58.239.6.8_1213,VPNGate,KR,Korea Republic of,vpn280257436,58.239.6.8,tcp,1213,451.28,191.3,vpn,vpn,profiles/vpngate_vpn280257436_1213_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_114.30.200.147_1943,VPNGate,KR,Korea Republic of,vpn838969205,114.30.200.147,tcp,1943,88.15,191.8,vpn,vpn,profiles/vpngate_vpn838969205_1943_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_121.152.68.6_1609,VPNGate,KR,Korea Republic of,vpn139086189,121.152.68.6,tcp,1609,296.27,194.72,vpn,vpn,profiles/vpngate_vpn139086189_1609_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_176.123.195.244_1731,VPNGate,RU,Russian Federation,vpn978689234,176.123.195.244,tcp,1731,80.18,209.38,vpn,vpn,profiles/vpngate_vpn978689234_1731_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_87.225.81.238_1806,VPNGate,RU,Russian Federation,vpn809464495,87.225.81.238,tcp,1806,93.46,212.07,vpn,vpn,profiles/vpngate_vpn809464495_1806_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_1.156.150.78_1810,VPNGate,AU,Australia,vpn424446655,1.156.150.78,tcp,1810,385.92,217.47,vpn,vpn,profiles/vpngate_vpn424446655_1810_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_92.37.188.68_1665,VPNGate,RU,Russian Federation,vpn228479212,92.37.188.68,tcp,1665,25.07,225.82,vpn,vpn,profiles/vpngate_vpn228479212_1665_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_119.76.28.24_1925,VPNGate,TH,Thailand,vpn618122443,119.76.28.24,tcp,1925,234.53,249.37,vpn,vpn,profiles/vpngate_vpn618122443_1925_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_183.91.106.83_1759,VPNGate,JP,Japan,vpn976254025,183.91.106.83,tcp,1759,95.63,657.91,vpn,vpn,profiles/vpngate_vpn976254025_1759_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_36.2.145.177_1868,VPNGate,JP,Japan,vpn570604960,36.2.145.177,tcp,1868,231.57,1227.68,vpn,vpn,profiles/vpngate_vpn570604960_1868_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
+vpngate_59.26.60.162_1783,VPNGate,KR,Korea Republic of,vpn570676296,59.26.60.162,tcp,1783,53.61,2264.53,vpn,vpn,profiles/vpngate_vpn570676296_1783_tcp.ovpn,2026-08-30T03:06:56.029183+00:00
