@@ -1,25 +1,8 @@
 {
   "version": 5,
-  "generated_at": "2026-08-30T04:27:37.913179+00:00",
+  "generated_at": "2026-08-30T07:57:51.172320+00:00",
   "count": 9,
   "servers": [
-    {
-      "source": "VPNBook",
-      "id": "vpnbook_us178.vpnbook.com_443_tcp",
-      "country": "US",
-      "country_name": "United States",
-      "hostname": "us178.vpnbook.com",
-      "ip": "147.135.37.178",
-      "protocol": "tcp",
-      "port": 443,
-      "speed_mbps": 0.0,
-      "ping_ms": 29.92,
-      "username": "vpnbook",
-      "password": "ytw2awn",
-      "config_auth": "username_password",
-      "profile": "profiles/vpnbook_us178.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.912863+00:00"
-    },
     {
       "source": "VPNBook",
       "id": "vpnbook_us16.vpnbook.com_443_tcp",
@@ -30,12 +13,12 @@
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 60.46,
+      "ping_ms": 3.08,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
+      "config_auth": "embedded",
       "profile": "profiles/vpnbook_us16.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.912922+00:00"
+      "last_updated": "2026-08-30T07:57:51.171517+00:00"
     },
     {
       "source": "VPNBook",
@@ -47,12 +30,12 @@
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 69.32,
+      "ping_ms": 14.55,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
+      "config_auth": "embedded",
       "profile": "profiles/vpnbook_ca196.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.912957+00:00"
+      "last_updated": "2026-08-30T07:57:51.171626+00:00"
     },
     {
       "source": "VPNBook",
@@ -64,29 +47,29 @@
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 70.28,
+      "ping_ms": 15.21,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
+      "config_auth": "embedded",
       "profile": "profiles/vpnbook_ca149.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.912991+00:00"
+      "last_updated": "2026-08-30T07:57:51.171715+00:00"
     },
     {
       "source": "VPNBook",
-      "id": "vpnbook_uk205.vpnbook.com_443_tcp",
-      "country": "GB",
-      "country_name": "United Kingdom",
-      "hostname": "uk205.vpnbook.com",
-      "ip": "145.239.252.205",
+      "id": "vpnbook_us178.vpnbook.com_443_tcp",
+      "country": "US",
+      "country_name": "United States",
+      "hostname": "us178.vpnbook.com",
+      "ip": "147.135.37.178",
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 132.42,
+      "ping_ms": 67.93,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
-      "profile": "profiles/vpnbook_uk205.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.913024+00:00"
+      "config_auth": "embedded",
+      "profile": "profiles/vpnbook_us178.vpnbook.com_443_tcp.ovpn",
+      "last_updated": "2026-08-30T07:57:51.171799+00:00"
     },
     {
       "source": "VPNBook",
@@ -98,12 +81,29 @@
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 134.22,
+      "ping_ms": 76.04,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
+      "config_auth": "embedded",
       "profile": "profiles/vpnbook_uk68.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.913056+00:00"
+      "last_updated": "2026-08-30T07:57:51.171927+00:00"
+    },
+    {
+      "source": "VPNBook",
+      "id": "vpnbook_uk205.vpnbook.com_443_tcp",
+      "country": "GB",
+      "country_name": "United Kingdom",
+      "hostname": "uk205.vpnbook.com",
+      "ip": "145.239.252.205",
+      "protocol": "tcp",
+      "port": 443,
+      "speed_mbps": 0.0,
+      "ping_ms": 76.31,
+      "username": "vpnbook",
+      "password": "ytw2awn",
+      "config_auth": "embedded",
+      "profile": "profiles/vpnbook_uk205.vpnbook.com_443_tcp.ovpn",
+      "last_updated": "2026-08-30T07:57:51.172030+00:00"
     },
     {
       "source": "VPNBook",
@@ -115,29 +115,12 @@
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 140.17,
+      "ping_ms": 86.43,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
+      "config_auth": "embedded",
       "profile": "profiles/vpnbook_fr231.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.913088+00:00"
-    },
-    {
-      "source": "VPNBook",
-      "id": "vpnbook_de20.vpnbook.com_443_tcp",
-      "country": "DE",
-      "country_name": "Germany",
-      "hostname": "de20.vpnbook.com",
-      "ip": "51.75.145.20",
-      "protocol": "tcp",
-      "port": 443,
-      "speed_mbps": 0.0,
-      "ping_ms": 148.71,
-      "username": "vpnbook",
-      "password": "ytw2awn",
-      "config_auth": "username_password",
-      "profile": "profiles/vpnbook_de20.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.913124+00:00"
+      "last_updated": "2026-08-30T07:57:51.172112+00:00"
     },
     {
       "source": "VPNBook",
@@ -149,12 +132,29 @@
       "protocol": "tcp",
       "port": 443,
       "speed_mbps": 0.0,
-      "ping_ms": 154.38,
+      "ping_ms": 91.46,
       "username": "vpnbook",
       "password": "ytw2awn",
-      "config_auth": "username_password",
+      "config_auth": "embedded",
       "profile": "profiles/vpnbook_de220.vpnbook.com_443_tcp.ovpn",
-      "last_updated": "2026-08-30T04:27:37.913157+00:00"
+      "last_updated": "2026-08-30T07:57:51.172204+00:00"
+    },
+    {
+      "source": "VPNBook",
+      "id": "vpnbook_de20.vpnbook.com_443_tcp",
+      "country": "DE",
+      "country_name": "Germany",
+      "hostname": "de20.vpnbook.com",
+      "ip": "51.75.145.20",
+      "protocol": "tcp",
+      "port": 443,
+      "speed_mbps": 0.0,
+      "ping_ms": 92.03,
+      "username": "vpnbook",
+      "password": "ytw2awn",
+      "config_auth": "embedded",
+      "profile": "profiles/vpnbook_de20.vpnbook.com_443_tcp.ovpn",
+      "last_updated": "2026-08-30T07:57:51.172280+00:00"
     }
   ]
 }
