@@ -1,10 +1,23 @@
-id,source,country,country_name,hostname,ip,protocol,port,speed_mbps,ping_ms,username,password,config_auth,profile,last_checked_at,last_updated
-vpnbook_us16.vpnbook.com_443_tcp,VPNBook,US,United States,us16.vpnbook.com,147.135.15.16,tcp,443,0.0,3.08,vpnbook,ytw2awn,embedded,profiles/vpnbook_us16.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.171517+00:00
-vpnbook_ca196.vpnbook.com_443_tcp,VPNBook,CA,Canada,ca196.vpnbook.com,142.4.216.196,tcp,443,0.0,14.55,vpnbook,ytw2awn,embedded,profiles/vpnbook_ca196.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.171626+00:00
-vpnbook_ca149.vpnbook.com_443_tcp,VPNBook,CA,Canada,ca149.vpnbook.com,144.217.253.149,tcp,443,0.0,15.21,vpnbook,ytw2awn,embedded,profiles/vpnbook_ca149.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.171715+00:00
-vpnbook_us178.vpnbook.com_443_tcp,VPNBook,US,United States,us178.vpnbook.com,147.135.37.178,tcp,443,0.0,67.93,vpnbook,ytw2awn,embedded,profiles/vpnbook_us178.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.171799+00:00
-vpnbook_uk68.vpnbook.com_443_tcp,VPNBook,GB,United Kingdom,uk68.vpnbook.com,145.239.255.68,tcp,443,0.0,76.04,vpnbook,ytw2awn,embedded,profiles/vpnbook_uk68.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.171927+00:00
-vpnbook_uk205.vpnbook.com_443_tcp,VPNBook,GB,United Kingdom,uk205.vpnbook.com,145.239.252.205,tcp,443,0.0,76.31,vpnbook,ytw2awn,embedded,profiles/vpnbook_uk205.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.172030+00:00
-vpnbook_fr231.vpnbook.com_443_tcp,VPNBook,FR,France,fr231.vpnbook.com,5.196.64.231,tcp,443,0.0,86.43,vpnbook,ytw2awn,embedded,profiles/vpnbook_fr231.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.172112+00:00
-vpnbook_de220.vpnbook.com_443_tcp,VPNBook,DE,Germany,de220.vpnbook.com,51.75.145.220,tcp,443,0.0,91.46,vpnbook,ytw2awn,embedded,profiles/vpnbook_de220.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.172204+00:00
-vpnbook_de20.vpnbook.com_443_tcp,VPNBook,DE,Germany,de20.vpnbook.com,51.75.145.20,tcp,443,0.0,92.03,vpnbook,ytw2awn,embedded,profiles/vpnbook_de20.vpnbook.com_443_tcp.ovpn,,2026-08-30T07:57:51.172280+00:00
+id,country,country_name,hostname,ip,protocol,port,tcp_port,udp_port,speed_mbps,ping_ms,sessions,uptime_days,score,username,password,profile,last_updated
+187.245.115.219:3785:udp,MX,Mexico,vpn331548919,187.245.115.219,udp,3785,0,0,180.83,19.0,0,0.0,477.57,vpn,vpn,profiles/vpn331548919_3785_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+109.126.36.11:5901:udp,RU,Russian Federation,vpn618894835,109.126.36.11,udp,5901,0,0,96.55,35.0,3,382.57,583.54,vpn,vpn,profiles/vpn618894835_5901_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+90.150.248.166:2501:udp,RU,Russian Federation,vpn245196604,90.150.248.166,udp,2501,0,0,188.14,51.0,1,0.0,473.47,vpn,vpn,profiles/vpn245196604_2501_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+49.48.216.214:1235:udp,TH,Thailand,vpn367079905,49.48.216.214,udp,1235,0,0,417.85,3.0,82,515.32,692.38,vpn,vpn,profiles/vpn367079905_1235_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+223.206.240.84:1608:udp,TH,Thailand,vpn812348403,223.206.240.84,udp,1608,0,0,302.0,11.0,42,639.2,654.12,vpn,vpn,profiles/vpn812348403_1608_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+5.143.104.202:3596:udp,RU,Russian Federation,vpn507542265,5.143.104.202,udp,3596,0,0,62.22,123.0,13,382.57,541.9,vpn,vpn,profiles/vpn507542265_3596_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+212.58.120.194:1340:udp,GE,Georgia,vpn815622821,212.58.120.194,udp,1340,0,0,51.33,35.0,1,515.32,565.11,vpn,vpn,profiles/vpn815622821_1340_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+1.53.159.191:25084:udp,VN,Viet Nam,vpn445427410,1.53.159.191,udp,25084,0,0,202.45,30.0,0,382.57,635.1,vpn,vpn,profiles/vpn445427410_25084_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+1.55.222.125:14925:udp,VN,Viet Nam,vpn692194123,1.55.222.125,udp,14925,0,0,352.59,30.0,6,382.57,697.01,vpn,vpn,profiles/vpn692194123_14925_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+131.100.145.148:22511:udp,BR,Brazil,vpn902011606,131.100.145.148,udp,22511,0,0,124.09,12.0,25,1604.74,583.44,vpn,vpn,profiles/vpn902011606_22511_udp.ovpn,2026-08-31T01:53:15.042467+00:00
+96.18.192.206:1252:tcp,US,United States,vpn380700331,96.18.192.206,tcp,1252,0,0,173.56,9.0,12,0.0,465.59,vpn,vpn,profiles/vpn380700331_1252_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+38.42.34.70:1918:tcp,US,United States,vpn867124808,38.42.34.70,tcp,1918,0,0,233.03,15.0,30,0.0,478.79,vpn,vpn,profiles/vpn867124808_1918_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+91.198.77.27:995:tcp,NL,Netherlands,vpn430520349,91.198.77.27,tcp,995,0,0,240.83,3.0,48,7413.56,625.34,vpn,vpn,profiles/vpn430520349_995_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+126.237.151.103:1881:tcp,JP,Japan,vpn996750759,126.237.151.103,tcp,1881,0,0,783.61,3.0,22,382.57,883.99,vpn,vpn,profiles/vpn996750759_1881_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+60.86.187.164:1894:tcp,JP,Japan,vpn928700309,60.86.187.164,tcp,1894,0,0,906.06,5.0,39,1604.74,928.67,vpn,vpn,profiles/vpn928700309_1894_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+39.120.240.185:1740:tcp,KR,Korea Republic of,vpn694210345,39.120.240.185,tcp,1740,0,0,838.88,37.0,26,382.57,899.46,vpn,vpn,profiles/vpn694210345_1740_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+222.102.134.11:995:tcp,KR,Korea Republic of,vpn233624145,222.102.134.11,tcp,995,0,0,595.88,27.0,43,639.2,782.67,vpn,vpn,profiles/vpn233624145_995_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+222.237.120.227:995:tcp,KR,Korea Republic of,vpn694415775,222.237.120.227,tcp,995,0,0,692.2,31.0,23,515.32,836.59,vpn,vpn,profiles/vpn694415775_995_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+217.138.212.62:443:tcp,RO,Romania,opengw,217.138.212.62,tcp,443,0,0,214.56,7.0,125,11446.24,589.59,vpn,vpn,profiles/opengw_443_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+217.165.11.213:992:tcp,AE,United Arab Emirates,wams,217.165.11.213,tcp,992,0,0,61.66,6.0,81,53467.35,531.8,vpn,vpn,profiles/wams_992_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+140.111.148.17:992:tcp,TW,Taiwan,vpn713264157,140.111.148.17,tcp,992,0,0,288.18,4.0,142,2510.66,620.2,vpn,vpn,profiles/vpn713264157_992_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
+27.130.193.179:1582:tcp,TH,Thailand,vpn640380829,27.130.193.179,tcp,1582,0,0,480.32,8.0,64,1604.74,725.52,vpn,vpn,profiles/vpn640380829_1582_tcp.ovpn,2026-08-31T01:53:15.042467+00:00
