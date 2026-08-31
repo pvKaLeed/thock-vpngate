@@ -1,33 +1,42 @@
-name: Update VPN Servers
+name: Update VPN Gate Servers
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # 6 နာရီတစ်ကြိမ် Auto Run မည်
+    # 6 hours interval
+    - cron: '0 */6 * * *'
+  # Also allow manual trigger
   workflow_dispatch:
 
 jobs:
   update-servers:
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
+      
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install Dependencies
+          
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests urllib3
-
-      - name: Run Update Script
-        run: python update_servers.py
-
-      - name: Commit & Push Changes
+          pip install requests
+          
+      - name: Run update script
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update VPN servers" && git push)
+          python scripts/update_vpngate.py
+          
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/
+          git diff --staged --quiet || git commit -m "Auto-update VPN Gate servers [skip ci]"
+          git push
