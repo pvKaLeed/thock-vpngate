@@ -22,8 +22,8 @@ import requests
 # ============================================================
 #SOURCE_URL = "https://www.vpngate.net/api/iphone/"
 
-SOURCE_URL = "https://github.com/9xN/auto-ovpn?utm_source=chatgpt.com"
-SOURCE_URL = "https://github.com/6Kmfi6HP/vpngate-meridian?utm_source=chatgpt.com"
+SOURCE_URL = "https://www.vpngate.net/api/iphone/"
+#SOURCE_URL = "https://github.com/6Kmfi6HP/vpngate-meridian?utm_source=chatgpt.com"
 #https://github.com/9xN/auto-ovpn?utm_source=chatgpt.com
 #https://github.com/6Kmfi6HP/vpngate-meridian?utm_source=chatgpt.com
 
