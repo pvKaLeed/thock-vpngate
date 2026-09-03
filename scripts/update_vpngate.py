@@ -20,12 +20,7 @@ import requests
 # ============================================================
 # Configuration
 # ============================================================
-#SOURCE_URL = "https://www.vpngate.net/api/iphone/"
-
 SOURCE_URL = "https://www.vpngate.net/api/iphone/"
-#SOURCE_URL = "https://github.com/6Kmfi6HP/vpngate-meridian?utm_source=chatgpt.com"
-#https://github.com/9xN/auto-ovpn?utm_source=chatgpt.com
-#https://github.com/6Kmfi6HP/vpngate-meridian?utm_source=chatgpt.com
 
 CSV_OUTPUT = "data/servers.csv"
 JSON_OUTPUT = "data/servers.json"
@@ -49,10 +44,10 @@ MAX_PING_MS = 1500.0
 # Priority Countries & Server Testing Configuration
 # ============================================================
 
-PRIORITY_COUNTRIES = ["US", "CA", "NL", "SG", "DE"]
+PRIORITY_COUNTRIES = ["US", "CA", "NL", "SG", "DE", "JP", "KR", "TH", "VN"]
 
-MIN_SERVERS_PER_COUNTRY = 3
-MAX_SERVERS_PER_COUNTRY = 10
+MIN_SERVERS_PER_COUNTRY = 2
+MAX_SERVERS_PER_COUNTRY = 5
 
 # Server testing configuration
 TEST_TIMEOUT = 3  # seconds
@@ -129,9 +124,13 @@ def test_server_connection(server):
                     
         # UDP connection test
         elif protocol == "udp":
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                sock.settimeout(TEST_TIMEOUT)
-                sock.connect((ip, port))
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    sock.settimeout(TEST_TIMEOUT)
+                    sock.connect((ip, port))
+                    server["response_time_ms"] = round((time.time() - start_time) * 1000, 2)
+                    return server
+            except socket.error:
                 server["response_time_ms"] = round((time.time() - start_time) * 1000, 2)
                 return server
                 
@@ -142,19 +141,23 @@ def test_server_connection(server):
 
 
 def filter_active_servers(servers, max_workers=MAX_WORKERS):
-    """Filter servers by actual connection test"""
+    """Filter servers by actual connection test - ပိုမိုမြန်ဆန်အောင်ပြင်ဆင်ခြင်း"""
     if not servers:
         return []
         
     active_servers = []
     tested_count = 0
+    total = len(servers)
     
-    print(f"🔍 Testing {len(servers)} servers for availability...")
+    print(f"🔍 Testing {total} servers for availability...")
+    
+    test_limit = min(total, 50)
+    test_servers = servers[:test_limit]
     
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_server = {
             executor.submit(test_server_connection, server): server 
-            for server in servers
+            for server in test_servers
         }
         
         for future in as_completed(future_to_server):
@@ -165,10 +168,24 @@ def filter_active_servers(servers, max_workers=MAX_WORKERS):
                 print(f"✅ Active: {result.get('ip')}:{result.get('port')} ({result.get('country')}) [{result.get('protocol').upper()}]")
             
             if tested_count % 10 == 0:
-                print(f"⏳ Progress: {tested_count}/{len(servers)}")
+                print(f"⏳ Progress: {tested_count}/{total}")
     
-    print(f"📊 Active servers found: {len(active_servers)}/{len(servers)}")
+    if len(active_servers) < 5:
+        print("⚠️ Not enough active servers found. Adding some filtered servers as fallback.")
+        remaining = servers[:10]
+        active_servers.extend(remaining)
+    
+    print(f"📊 Active servers found: {len(active_servers)}/{total}")
     return active_servers
+
+
+def select_best_servers(servers, limit=20):
+    """အကောင်းဆုံး Server များကိုသာ ရွေးချယ်ပါ"""
+    if not servers:
+        return []
+    
+    sorted_servers = sorted(servers, key=lambda x: x.get("score", 0), reverse=True)
+    return sorted_servers[:limit]
 
 
 def filter_servers_by_country(servers):
@@ -204,12 +221,12 @@ def filter_servers_by_country(servers):
                 key=lambda x: x.get("score", 0), 
                 reverse=True
             )
-            other_servers.extend(sorted_servers[:3])
+            other_servers.extend(sorted_servers[:2])
     
     total_servers = priority_servers + other_servers
     print(f"📊 Total servers selected: {len(total_servers)}")
     
-    return total_servers
+    return select_best_servers(total_servers, 20)
 
 
 # ============================================================
@@ -383,6 +400,9 @@ def process_servers(rows):
         country_short = clean(row.get("CountryShort"))
         country_long = clean(row.get("CountryLong"))
 
+        # ✅ Base64 Config ကို သိမ်းထားပါ
+        encoded_profile = clean(row.get("OpenVPN_ConfigData_Base64"))
+
         server = {
             "id": server_id,
             "country": country_short,
@@ -402,6 +422,7 @@ def process_servers(rows):
             "password": VPN_PASSWORD,
             "profile": "",  # Will be generated for final active servers
             "raw_profile": profile,
+            "openvpn_configdata_base64": encoded_profile,  # ✅ Base64 Config ထည့်ပါ
             "last_updated": generated_at,
         }
 
@@ -447,10 +468,13 @@ def write_profiles(servers):
 def write_csv(servers):
     os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
     
+    # ✅ Base64 Config ကိုထည့်ရန်
     fields = [
         "id", "country", "country_name", "hostname", "ip", "protocol",
         "port", "tcp_port", "udp_port", "speed_mbps", "ping_ms", "sessions",
-        "uptime_days", "score", "username", "password", "profile", "last_updated"
+        "uptime_days", "score", "username", "password", "profile", 
+        "openvpn_configdata_base64",  # ✅ ထည့်ပါ
+        "last_updated"
     ]
     
     filtered_servers = []
@@ -467,6 +491,7 @@ def write_csv(servers):
 def write_json(servers):
     os.makedirs(os.path.dirname(JSON_OUTPUT), exist_ok=True)
     
+    # ✅ Base64 Config ကို ထည့်ရန်
     fields_to_exclude = {"response_time_ms", "raw_profile"}
     clean_servers = []
     for server in servers:
@@ -492,10 +517,9 @@ def write_json(servers):
 def main():
     try:
         print("========================================")
-        print("THOCK VPN Gate Updater v2.1 (Active Server Filter)")
+        print("THOCK VPN Gate Updater v2.2 (Base64 Config Included)")
         print("========================================")
 
-        # Download and process
         source = download_source()
         rows = parse_source(source)
         print(f"Source servers: {len(rows)}")
@@ -506,21 +530,18 @@ def main():
         if not servers:
             raise RuntimeError("No valid OpenVPN servers found.")
 
-        # Filter by priority countries
         filtered_servers = filter_servers_by_country(servers)
         print(f"After country filter: {len(filtered_servers)}")
 
         if not filtered_servers:
             raise RuntimeError("No servers after country filter!")
 
-        # Test server availability
         active_servers = filter_active_servers(filtered_servers)
 
         if not active_servers:
             print("⚠️ No active servers found! Saving filtered list anyway.")
             active_servers = filtered_servers[:10]
 
-        # Write output files (Profiles, CSV, JSON)
         write_profiles(active_servers)
         write_csv(active_servers)
         write_json(active_servers)
