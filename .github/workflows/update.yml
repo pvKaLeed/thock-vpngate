@@ -3,7 +3,7 @@ name: Update VPN Gate Servers
 on:
   schedule:
     # 6 hours interval
-    - cron: '*/10 * * * *'
+    - cron: '*/2 * * * *'
   # Also allow manual trigger
   workflow_dispatch:
 
