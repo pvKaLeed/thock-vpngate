@@ -1,0 +1,68 @@
+
+name: Update VPNBook
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run daily at 03:17 UTC
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-vpnbook
+  cancel-in-progress: false
+
+jobs:
+  update-vpnbook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Update VPNBook profiles and metadata
+        run: python script/update_vpnbook.py
+
+      - name: Validate generated JSON and profiles
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(
+              Path("data/vpnbook.json").read_text(encoding="utf-8")
+          )
+          profiles = list(
+              Path("data/profiles/vpnbook").glob("*.ovpn")
+          )
+
+          assert data["provider"] == "vpnbook"
+          assert data["server_count"] > 0
+          assert data["profile_count"] > 0
+          assert profiles, "No .ovpn files were generated"
+
+          print("Servers:", data["server_count"])
+          print("Profiles:", len(profiles))
+          PY
+
+      - name: Commit VPNBook updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/vpnbook.json data/profiles/vpnbook/
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update VPNBook data"
+            git push
+          fi
