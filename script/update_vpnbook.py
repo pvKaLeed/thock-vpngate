@@ -90,10 +90,30 @@ class PageParser(HTMLParser):
         self.text_parts.append(data)
 
 
+
 def get_page(url: str) -> tuple[str, list[str]]:
     raw = fetch(url).decode("utf-8", errors="replace")
     parser = PageParser()
     parser.feed(raw)
+
+    print(f"Page inspected: {url}")
+    print("Forms and download-related references:")
+
+    for match in re.finditer(
+        r"""(?is)<form\b[^>]*>|<script\b[^>]*src=["']([^"']+)["'][^>]*>|[^"' \t<>]+\.zip(?:\?[^"' \t<>]*)?""",
+        raw,
+    ):
+        value = match.group(0).strip()
+        if value.lower().startswith("<script"):
+            script_match = re.search(
+                r"""src=["']([^"']+)["']""", value, re.I
+            )
+            if script_match:
+                value = "SCRIPT " + urllib.parse.urljoin(
+                    url, script_match.group(1)
+                )
+        print(value[:300])
+
     return " ".join(parser.text_parts), parser.links
 
 
