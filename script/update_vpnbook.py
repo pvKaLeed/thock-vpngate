@@ -74,20 +74,30 @@ def fetch(url: str) -> bytes:
     return data
 
 
+
 class PageParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.links: list[str] = []
         self.text_parts: list[str] = []
+        self.scripts: list[str] = []
 
     def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+
         if tag.lower() == "a":
-            href = dict(attrs).get("href")
+            href = attrs.get("href")
             if href:
                 self.links.append(html.unescape(href))
 
+        elif tag.lower() == "script":
+            src = attrs.get("src")
+            if src:
+                self.scripts.append(html.unescape(src))
+
     def handle_data(self, data):
         self.text_parts.append(data)
+
 
 
 
@@ -97,24 +107,46 @@ def get_page(url: str) -> tuple[str, list[str]]:
     parser.feed(raw)
 
     print(f"Page inspected: {url}")
-    print("Forms and download-related references:")
+    print(f"HTML links: {len(parser.links)}")
+    print(f"JavaScript chunks: {len(parser.scripts)}")
 
-    for match in re.finditer(
-        r"""(?is)<form\b[^>]*>|<script\b[^>]*src=["']([^"']+)["'][^>]*>|[^"' \t<>]+\.zip(?:\?[^"' \t<>]*)?""",
-        raw,
-    ):
-        value = match.group(0).strip()
-        if value.lower().startswith("<script"):
-            script_match = re.search(
-                r"""src=["']([^"']+)["']""", value, re.I
-            )
-            if script_match:
-                value = "SCRIPT " + urllib.parse.urljoin(
-                    url, script_match.group(1)
-                )
-        print(value[:300])
+    for src in parser.scripts:
+        script_url = urllib.parse.urljoin(url, src)
+
+        if urllib.parse.urlparse(script_url).hostname not in {
+            "www.vpnbook.com",
+            "vpnbook.com",
+        }:
+            continue
+
+        try:
+            js = fetch(script_url).decode("utf-8", errors="replace")
+        except (OSError, urllib.error.URLError, RuntimeError) as exc:
+            print(f"Could not inspect script: {exc}")
+            continue
+
+        # Print short context around download-related code.
+        pattern = re.compile(
+            r"zip|download|openvpn|api/|\\.ovpn|"
+            r"content-disposition|application/zip",
+            re.IGNORECASE,
+        )
+
+        matches = 0
+        for match in pattern.finditer(js):
+            start = max(0, match.start() - 100)
+            end = min(len(js), match.end() + 180)
+            snippet = re.sub(r"\s+", " ", js[start:end])
+
+            print(f"JS MATCH [{script_url.rsplit('/', 1)[-1]}]: "
+                  f"{snippet[:280]}")
+
+            matches += 1
+            if matches >= 8:
+                break
 
     return " ".join(parser.text_parts), parser.links
+
 
 
 def parse_credentials(text: str) -> tuple[str, str]:
