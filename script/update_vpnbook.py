@@ -122,7 +122,9 @@ def parse_credentials(text: str) -> tuple[str, str]:
     return username, password
 
 
+
 def discover_zip_urls(links: list[str]) -> list[str]:
+    """Find official VPNBook OpenVPN ZIP links, including legacy URLs."""
     found = set()
 
     for link in links:
@@ -131,12 +133,19 @@ def discover_zip_urls(links: list[str]) -> list[str]:
 
         if parsed.scheme != "https":
             continue
-        if parsed.hostname not in {"vpnbook.com", "www.vpnbook.com"}:
-            continue
-        if not parsed.path.lower().endswith(".zip"):
+
+        if parsed.hostname not in {
+            "vpnbook.com",
+            "www.vpnbook.com",
+            "static.vpnbook.com",
+        }:
             continue
 
-        found.add(url)
+        path = urllib.parse.unquote(parsed.path).lower()
+
+        # Do not require a specific legacy filename prefix.
+        if path.endswith(".zip") and "openvpn" in path:
+            found.add(url)
 
     return sorted(found)
 
