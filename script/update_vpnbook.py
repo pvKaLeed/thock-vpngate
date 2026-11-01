@@ -1,25 +1,28 @@
-#!/usr/bin/env python3
-"""Update VPNBook's public OpenVPN profiles and server metadata.
 
-Uses only Python's standard library. Existing data is preserved if fetching,
-parsing, or validation fails.
+#!/usr/bin/env python3
+"""Update VPNBook OpenVPN profiles from the official VPNBook website.
+
+Outputs:
+    data/vpnbook.json
+    data/profiles/vpnbook/*.ovpn
+    data/profiles/vpnbook/auth.txt
+
+Only Python's standard library is required.
+Existing files are preserved if discovery, download, or validation fails.
 """
 
 from __future__ import annotations
 
 import html
-import io
 import json
 import os
 import re
 import shutil
 import sys
 import tempfile
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import zipfile
 
 from datetime import datetime, timezone
 from html.parser import HTMLParser
@@ -33,9 +36,14 @@ AUTH_FILE = PROFILE_DIR / "auth.txt"
 
 SOURCE_URL = "https://www.vpnbook.com/freevpn/openvpn"
 HOME_URL = "https://www.vpnbook.com/"
-USER_AGENT = "Mozilla/5.0 (compatible; thock-vpnbook-updater/1.0)"
+API_URL = "https://www.vpnbook.com/api/openvpn"
+
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) "
+    "AppleWebKit/537.36 Chrome/130.0 Safari/537.36"
+)
 TIMEOUT = 30
-MAX_DOWNLOAD = 25 * 1024 * 1024
+MAX_DOWNLOAD = 5 * 1024 * 1024
 
 COUNTRIES = {
     "us": "United States",
@@ -45,13 +53,12 @@ COUNTRIES = {
     "fr": "France",
 }
 
-# VPNBook's documented public OpenVPN transport ports.
-PROTOCOLS = [
-    {"name": "tcp443", "proto": "tcp-client", "port": 443},
-    {"name": "tcp80", "proto": "tcp-client", "port": 80},
-    {"name": "udp53", "proto": "udp", "port": 53},
-    {"name": "udp25000", "proto": "udp", "port": 25000},
-]
+PROTOCOLS = (
+    "tcp443",
+    "tcp80",
+    "udp53",
+    "udp25000",
+)
 
 HOST_RE = re.compile(
     r"\b((?:us|ca|uk|de|fr)\d+)\.vpnbook\.com\b",
@@ -59,47 +66,59 @@ HOST_RE = re.compile(
 )
 
 
-def fetch(url: str) -> bytes:
-    request = urllib.request.Request(
-        url,
-        headers={"User-Agent": USER_AGENT},
-    )
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-        if response.status != 200:
-            raise RuntimeError(f"HTTP {response.status}: {url}")
-        data = response.read(MAX_DOWNLOAD + 1)
-
-    if len(data) > MAX_DOWNLOAD:
-        raise RuntimeError(f"Download exceeds size limit: {url}")
-    return data
-
-
-
 class PageParser(HTMLParser):
-    def __init__(self):
+    """Extract visible text and links from HTML."""
+
+    def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.links: list[str] = []
         self.text_parts: list[str] = []
-        self.scripts: list[str] = []
 
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
+    def handle_starttag(self, tag, attrs) -> None:
+        if tag.lower() != "a":
+            return
 
-        if tag.lower() == "a":
-            href = attrs.get("href")
-            if href:
-                self.links.append(html.unescape(href))
+        attrs_dict = dict(attrs)
+        href = attrs_dict.get("href")
 
-        elif tag.lower() == "script":
-            src = attrs.get("src")
-            if src:
-                self.scripts.append(html.unescape(src))
+        if href:
+            self.links.append(html.unescape(href))
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         self.text_parts.append(data)
 
 
+def fetch(url: str) -> bytes:
+    """Fetch a URL with a size limit."""
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept": "*/*",
+        },
+    )
 
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        if response.status != 200:
+            raise RuntimeError(f"HTTP {response.status}: {url}")
+
+        content_type = response.headers.get("Content-Type", "")
+        data = response.read(MAX_DOWNLOAD + 1)
+
+    if len(data) > MAX_DOWNLOAD:
+        raise RuntimeError(f"Response exceeds size limit: {url}")
+
+    # Don't reject profiles based on MIME type alone: the API may
+    # return text/plain or application/octet-stream.
+    if "text/html" in content_type.lower():
+        text = data.decode("utf-8", errors="replace").lower()
+
+        if "<html" in text and "client" not in text:
+            raise RuntimeError(
+                f"Expected profile data but received HTML: {url}"
+            )
+
+    return data
 
 
 def get_page(url: str) -> tuple[str, list[str]]:
@@ -109,72 +128,38 @@ def get_page(url: str) -> tuple[str, list[str]]:
 
     print(f"Page inspected: {url}")
     print(f"HTML links: {len(parser.links)}")
-    print(f"JavaScript chunks: {len(parser.scripts)}")
-
-    # Diagnostic: look for the download URL in the HTML.
-    for keyword in ("openvpnBundleUrl", "/api/openvpn", "hostname"):
-        print(f"\n--- HTML CONTEXT: {keyword} ---")
-        start = 0
-
-        for _ in range(3):
-            pos = raw.find(keyword, start)
-            if pos == -1:
-                break
-
-            snippet = raw[max(0, pos - 200):pos + 400]
-            print(" ".join(snippet.split())[:600])
-            start = pos + len(keyword)
-
-    # Inspect only the relevant JavaScript chunk.
-    for src in parser.scripts:
-        script_url = urllib.parse.urljoin(url, src)
-
-        if urllib.parse.urlparse(script_url).hostname not in {
-            "www.vpnbook.com",
-            "vpnbook.com",
-        }:
-            continue
-
-        if "f3d6cf09b20ce25e.js" not in script_url:
-            continue
-
-        try:
-            js = fetch(script_url).decode("utf-8", errors="replace")
-        except (OSError, urllib.error.URLError, RuntimeError) as exc:
-            print(f"Could not inspect script: {exc}")
-            continue
-
-        for keyword in (
-            "openvpnBundleUrl",
-            "/api/openvpn",
-            "URLSearchParams",
-        ):
-            pos = js.find(keyword)
-            if pos != -1:
-                snippet = js[max(0, pos - 350):pos + 700]
-                print(f"\n--- JS CONTEXT: {keyword} ---")
-                print(" ".join(snippet.split())[:1000])
 
     return " ".join(parser.text_parts), parser.links
 
 
+def discover_hosts(*sources: str) -> list[str]:
+    """Discover supported VPNBook hostnames without guessing IPs."""
+    hosts: set[str] = set()
+
+    for source in sources:
+        for match in HOST_RE.finditer(source):
+            hosts.add(match.group(1).lower() + ".vpnbook.com")
+
+    return sorted(hosts)
 
 
 def parse_credentials(text: str) -> tuple[str, str]:
-    # Do not hardcode a password: it changes periodically.
+    """Parse the current public VPNBook credentials."""
     username_match = re.search(
-        r"Username\s+([A-Za-z0-9_.-]+)", text, re.IGNORECASE
+        r"\bUsername\s*[:：]?\s*([A-Za-z0-9_.-]+)",
+        text,
+        re.IGNORECASE,
     )
     password_match = re.search(
-        r"Password\s+([A-Za-z0-9!@#$%^&*()_+=.,?-]+)",
+        r"\bPassword\s*[:：]?\s*([A-Za-z0-9!@#$%^&*()_+=.,?-]+)",
         text,
         re.IGNORECASE,
     )
 
     if not username_match or not password_match:
         raise RuntimeError(
-            "Could not parse credentials from the official page; "
-            "refusing to publish stale or guessed credentials."
+            "Could not parse current credentials from official pages. "
+            "No existing files were replaced."
         )
 
     username = username_match.group(1).strip()
@@ -182,215 +167,183 @@ def parse_credentials(text: str) -> tuple[str, str]:
 
     if not username or not password:
         raise RuntimeError("Empty VPNBook credentials.")
+
     return username, password
 
 
-
-def discover_zip_urls(links: list[str]) -> list[str]:
-    """Find official VPNBook OpenVPN ZIP links, including legacy URLs."""
-    found = set()
-
-    for link in links:
-        url = urllib.parse.urljoin(SOURCE_URL, link)
-        parsed = urllib.parse.urlparse(url)
-
-        if parsed.scheme != "https":
-            continue
-
-        if parsed.hostname not in {
-            "vpnbook.com",
-            "www.vpnbook.com",
-            "static.vpnbook.com",
-        }:
-            continue
-
-        path = urllib.parse.unquote(parsed.path).lower()
-
-        # Do not require a specific legacy filename prefix.
-        if path.endswith(".zip") and "openvpn" in path:
-            found.add(url)
-
-    return sorted(found)
-
-
-def parse_profile(content: str, source_name: str):
-    # Profiles are data, not executable commands. We only accept files
-    # with a valid OpenVPN client header and at least one recognized server.
-    if not re.search(r"(?m)^\s*client\s*$", content):
-        return None
-
-    hosts = sorted({
-        m.group(1).lower() + ".vpnbook.com"
-        for m in HOST_RE.finditer(content)
+def download_profile(host: str, protocol: str) -> str:
+    """Download and validate one official OpenVPN profile."""
+    query = urllib.parse.urlencode({
+        "hostname": host,
+        "protocol": protocol,
     })
-    if not hosts:
-        return None
+    url = f"{API_URL}?{query}"
 
-    # Only accept known public VPNBook hostnames.
-    host = hosts[0]
-    server_code = host.split(".")[0]
-    prefix = re.match(r"([a-z]+)", server_code).group(1)
-    country = COUNTRIES.get(prefix)
-    if not country:
-        return None
+    raw = fetch(url).decode("utf-8-sig", errors="replace")
+    content = raw.strip()
 
-    return host, server_code, country, content
+    if not content:
+        raise RuntimeError(f"Empty API response for {host}/{protocol}")
 
+    if not re.search(r"(?m)^\s*client\s*$", content):
+        raise RuntimeError(
+            f"API did not return an OpenVPN client profile for "
+            f"{host}/{protocol}"
+        )
 
-def rewrite_profile(
-    content: str,
-    host: str,
-    proto: str,
-    port: int,
-    auth_filename: str,
-) -> str:
-    lines = content.splitlines()
-    output = []
-    remote_written = False
-    proto_written = False
+    if not re.search(r"(?m)^\s*remote\s+\S+", content):
+        raise RuntimeError(
+            f"Profile has no remote directive for {host}/{protocol}"
+        )
+
+    # Require a real CA certificate or a CA reference.
+    has_ca = (
+        "<ca>" in content.lower()
+        or "-----BEGIN CERTIFICATE-----" in content
+        or bool(re.search(r"(?m)^\s*ca\s+\S+", content))
+    )
+    if not has_ca:
+        raise RuntimeError(
+            f"Profile has no recognizable CA certificate for "
+            f"{host}/{protocol}"
+        )
+
+    # Replace auth-user-pass directives with a relative auth file.
+    # Preserve all other official profile directives.
+    output: list[str] = []
     auth_written = False
 
-    for line in lines:
-        stripped = line.strip()
-        lower = stripped.lower()
-
-        # Replace existing remotes with one selected server and port.
-        if lower.startswith("remote "):
-            if not remote_written:
-                output.append(f"remote {host} {port}")
-                remote_written = True
-            continue
-
-        if lower.startswith("proto "):
-            if not proto_written:
-                output.append(f"proto {proto}")
-                proto_written = True
-            continue
-
-        if lower.startswith("auth-user-pass"):
+    for line in content.splitlines():
+        if line.strip().lower().startswith("auth-user-pass"):
             if not auth_written:
-                output.append(f"auth-user-pass {auth_filename}")
+                output.append("auth-user-pass auth.txt")
                 auth_written = True
             continue
 
         output.append(line)
 
-    if not remote_written:
-        # Do not invent a profile if it lacks a remote directive.
-        raise RuntimeError(f"Template has no remote directive for {host}")
-
-    if not proto_written:
-        output.insert(1, f"proto {proto}")
-
     if not auth_written:
-        # Add credentials using a separate file instead of embedding
-        # the shared password in every .ovpn profile.
-        output.append(f"auth-user-pass {auth_filename}")
+        output.append("auth-user-pass auth.txt")
 
     result = "\n".join(output).rstrip() + "\n"
 
-    # Basic validation of the generated configuration.
-    if "BEGIN CERTIFICATE" not in result and "ca " not in result:
-        if "<ca>" not in result:
-            raise RuntimeError(
-                f"Template for {host} does not contain a recognizable CA "
-                "certificate/reference."
-            )
+    # Final sanity check after rewriting.
+    if not re.search(r"(?m)^\s*remote\s+\S+", result):
+        raise RuntimeError("Profile validation failed after rewriting.")
 
     return result
 
 
+def write_json(path: Path, document: dict) -> None:
+    path.write_text(
+        json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
     print(f"Fetching official VPNBook page: {SOURCE_URL}")
-    page_text, page_links = get_page(SOURCE_URL)
 
-    # Some site versions publish credentials on the home page.
-    home_text, home_links = get_page(HOME_URL)
-    all_text = page_text + " " + home_text
-    all_links = page_links + home_links
+    page_text, _ = get_page(SOURCE_URL)
+    home_text, _ = get_page(HOME_URL)
+
+    all_text = page_text + "\n" + home_text
 
     username, password = parse_credentials(all_text)
-    zip_urls = discover_zip_urls(all_links)
+    hosts = discover_hosts(all_text)
 
-    if not zip_urls:
+    if not hosts:
         raise RuntimeError(
-            "No official .zip profile links were found on VPNBook's pages. "
-            "The site may have changed its download interface. No files "
-            "were replaced; inspect the current official download page."
+            "No supported server hostnames were found on official pages. "
+            "The website may have changed; existing files were preserved."
         )
 
-    print(f"Found {len(zip_urls)} official profile archive(s).")
+    print(f"Discovered {len(hosts)} server(s).")
+
     profiles: dict[str, str] = {}
     servers: dict[str, dict] = {}
+    errors: list[str] = []
 
-    for zip_url in zip_urls:
-        print(f"Downloading {zip_url}")
-        archive_data = fetch(zip_url)
+    for host in hosts:
+        server_code = host.split(".", 1)[0]
+        prefix_match = re.match(r"([a-z]+)", server_code)
 
-        try:
-            archive = zipfile.ZipFile(io.BytesIO(archive_data))
-        except zipfile.BadZipFile as exc:
-            raise RuntimeError(f"Invalid ZIP archive: {zip_url}") from exc
+        if not prefix_match:
+            continue
 
-        for info in archive.infolist():
-            if info.is_dir() or not info.filename.lower().endswith(".ovpn"):
+        country_code = prefix_match.group(1)
+        country = COUNTRIES.get(country_code)
+
+        if country is None:
+            continue
+
+        server_profiles: list[str] = []
+
+        for protocol in PROTOCOLS:
+            filename = f"{server_code}-{protocol}.ovpn"
+
+            try:
+                profile = download_profile(host, protocol)
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                urllib.error.URLError,
+            ) as exc:
+                errors.append(f"{filename}: {exc}")
                 continue
-            if info.file_size > 2 * 1024 * 1024:
-                print(f"Skipping oversized profile: {info.filename}")
-                continue
 
-            raw = archive.read(info)
-            content = raw.decode("utf-8", errors="replace")
-            parsed = parse_profile(content, info.filename)
-            if not parsed:
-                continue
+            profiles[filename] = profile
+            server_profiles.append(filename)
 
-            host, server_code, country, template = parsed
+        if server_profiles:
+            servers[server_code] = {
+                "id": server_code,
+                "provider": "vpnbook",
+                "hostname": host,
+                "country": country,
+                "country_code": country_code.upper(),
+                "protocols": [
+                    protocol
+                    for protocol in PROTOCOLS
+                    if f"{server_code}-{protocol}.ovpn" in profiles
+                ],
+                "profiles": server_profiles,
+            }
 
-            for transport in PROTOCOLS:
-                filename = (
-                    f"{server_code}-{transport['name']}.ovpn"
-                )
-                try:
-                    rendered = rewrite_profile(
-                        template,
-                        host=host,
-                        proto=transport["proto"],
-                        port=transport["port"],
-                        auth_filename="auth.txt",
-                    )
-                except RuntimeError as exc:
-                    print(f"Skipping {filename}: {exc}")
-                    continue
+    # Fail closed: don't publish a partial set of server profiles.
+    expected_count = len(hosts) * len(PROTOCOLS)
 
-                profiles[filename] = rendered
-                server = servers.setdefault(
-                    server_code,
-                    {
-                        "id": server_code,
-                        "provider": "vpnbook",
-                        "hostname": host,
-                        "country": country,
-                        "country_code": server_code[:2].upper(),
-                        "protocols": [],
-                        "profiles": [],
-                    },
-                )
-                if transport["name"] not in server["protocols"]:
-                    server["protocols"].append(transport["name"])
-                if filename not in server["profiles"]:
-                    server["profiles"].append(filename)
+    if errors or len(profiles) != expected_count:
+        for error in errors:
+            # Avoid logging credentials or profile contents.
+            print(f"PROFILE ERROR: {error}", file=sys.stderr)
 
-    if not profiles or not servers:
         raise RuntimeError(
-            "No valid OpenVPN profiles could be generated. "
-            "Existing data was not changed."
+            f"Profile update incomplete: {len(profiles)}/{expected_count} "
+            "profiles downloaded and validated. Existing files were "
+            "preserved."
         )
 
-    # Stage all output first. Never replace working data with an empty result.
+    if not servers or not profiles:
+        raise RuntimeError(
+            "No valid profiles were generated. Existing files were preserved."
+        )
+
+    document = {
+        "provider": "vpnbook",
+        "source": SOURCE_URL,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "username": username,
+        "server_count": len(servers),
+        "profile_count": len(profiles),
+        "servers": sorted(
+            servers.values(),
+            key=lambda server: server["id"],
+        ),
+    }
+
+    # Stage all files before installation.
     with tempfile.TemporaryDirectory(prefix="vpnbook-") as tmp:
         staging = Path(tmp)
         staged_profiles = staging / "profiles"
@@ -398,38 +351,66 @@ def main() -> int:
 
         for filename, content in profiles.items():
             (staged_profiles / filename).write_text(
-                content, encoding="utf-8"
+                content,
+                encoding="utf-8",
             )
 
         (staging / "auth.txt").write_text(
-            f"{username}\n{password}\n", encoding="utf-8"
-        )
-
-        document = {
-            "provider": "vpnbook",
-            "source": SOURCE_URL,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "username": username,
-            "server_count": len(servers),
-            "profile_count": len(profiles),
-            "servers": sorted(
-                servers.values(), key=lambda item: item["id"]
-            ),
-        }
-        (staging / "vpnbook.json").write_text(
-            json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+            f"{username}\n{password}\n",
             encoding="utf-8",
         )
 
-        # Install profiles only after the full set has passed validation.
-        for old_file in PROFILE_DIR.glob("*.ovpn"):
-            old_file.unlink()
+        write_json(staging / "vpnbook.json", document)
 
-        for filename in sorted(profiles):
-            shutil.copy2(staged_profiles / filename, PROFILE_DIR / filename)
+        # Keep a backup so an installation error can be rolled back.
+        backup = staging / "backup"
+        backup.mkdir()
+        backup_profiles = backup / "profiles"
+        backup_profiles.mkdir()
 
-        shutil.copy2(staging / "auth.txt", AUTH_FILE)
-        shutil.copy2(staging / "vpnbook.json", JSON_FILE)
+        old_files = list(PROFILE_DIR.glob("*.ovpn"))
+
+        for old_file in old_files:
+            shutil.copy2(old_file, backup_profiles / old_file.name)
+
+        for old_path in (AUTH_FILE, JSON_FILE):
+            if old_path.exists():
+                shutil.copy2(old_path, backup / old_path.name)
+
+        try:
+            PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+            # Remove old profiles only after the new set is validated.
+            for old_file in PROFILE_DIR.glob("*.ovpn"):
+                old_file.unlink()
+
+            for filename in sorted(profiles):
+                shutil.copy2(
+                    staged_profiles / filename,
+                    PROFILE_DIR / filename,
+                )
+
+            shutil.copy2(staging / "auth.txt", AUTH_FILE)
+            shutil.copy2(staging / "vpnbook.json", JSON_FILE)
+
+        except Exception:
+            # Restore the previous profile set and metadata on failure.
+            for current in PROFILE_DIR.glob("*.ovpn"):
+                current.unlink()
+
+            for saved in backup_profiles.glob("*.ovpn"):
+                shutil.copy2(saved, PROFILE_DIR / saved.name)
+
+            for old_name, destination in (
+                ("auth.txt", AUTH_FILE),
+                ("vpnbook.json", JSON_FILE),
+            ):
+                saved = backup / old_name
+                if saved.exists():
+                    shutil.copy2(saved, destination)
+
+            raise
 
     print(
         f"Updated {len(servers)} servers and {len(profiles)} profiles."
@@ -442,6 +423,11 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, ValueError, RuntimeError, urllib.error.URLError) as exc:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        urllib.error.URLError,
+    ) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(1)
