@@ -109,7 +109,22 @@ def get_page(url: str) -> tuple[str, list[str]]:
     print(f"Page inspected: {url}")
     print(f"HTML links: {len(parser.links)}")
     print(f"JavaScript chunks: {len(parser.scripts)}")
+for keyword in ("openvpnBundleUrl", "/api/openvpn", "hostname"):
+    print(f"\n--- HTML CONTEXT: {keyword} ---")
 
+    start = 0
+    shown = 0
+
+    while shown < 3:
+        pos = raw.find(keyword, start)
+        if pos == -1:
+            break
+
+        snippet = raw[max(0, pos - 250):pos + 500]
+        print(" ".join(snippet.split())[:750])
+
+        start = pos + len(keyword)
+        shown += 1
     for src in parser.scripts:
         script_url = urllib.parse.urljoin(url, src)
 
