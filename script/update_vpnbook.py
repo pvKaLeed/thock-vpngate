@@ -101,6 +101,7 @@ class PageParser(HTMLParser):
 
 
 
+
 def get_page(url: str) -> tuple[str, list[str]]:
     raw = fetch(url).decode("utf-8", errors="replace")
     parser = PageParser()
@@ -109,22 +110,22 @@ def get_page(url: str) -> tuple[str, list[str]]:
     print(f"Page inspected: {url}")
     print(f"HTML links: {len(parser.links)}")
     print(f"JavaScript chunks: {len(parser.scripts)}")
-for keyword in ("openvpnBundleUrl", "/api/openvpn", "hostname"):
-    print(f"\n--- HTML CONTEXT: {keyword} ---")
 
-    start = 0
-    shown = 0
+    # Diagnostic: look for the download URL in the HTML.
+    for keyword in ("openvpnBundleUrl", "/api/openvpn", "hostname"):
+        print(f"\n--- HTML CONTEXT: {keyword} ---")
+        start = 0
 
-    while shown < 3:
-        pos = raw.find(keyword, start)
-        if pos == -1:
-            break
+        for _ in range(3):
+            pos = raw.find(keyword, start)
+            if pos == -1:
+                break
 
-        snippet = raw[max(0, pos - 250):pos + 500]
-        print(" ".join(snippet.split())[:750])
+            snippet = raw[max(0, pos - 200):pos + 400]
+            print(" ".join(snippet.split())[:600])
+            start = pos + len(keyword)
 
-        start = pos + len(keyword)
-        shown += 1
+    # Inspect only the relevant JavaScript chunk.
     for src in parser.scripts:
         script_url = urllib.parse.urljoin(url, src)
 
@@ -134,33 +135,28 @@ for keyword in ("openvpnBundleUrl", "/api/openvpn", "hostname"):
         }:
             continue
 
+        if "f3d6cf09b20ce25e.js" not in script_url:
+            continue
+
         try:
             js = fetch(script_url).decode("utf-8", errors="replace")
         except (OSError, urllib.error.URLError, RuntimeError) as exc:
             print(f"Could not inspect script: {exc}")
             continue
 
-        # Print short context around download-related code.
-        pattern = re.compile(
-            r"zip|download|openvpn|api/|\\.ovpn|"
-            r"content-disposition|application/zip",
-            re.IGNORECASE,
-        )
-
-        matches = 0
-        for match in pattern.finditer(js):
-            start = max(0, match.start() - 100)
-            end = min(len(js), match.end() + 180)
-            snippet = re.sub(r"\s+", " ", js[start:end])
-
-            print(f"JS MATCH [{script_url.rsplit('/', 1)[-1]}]: "
-                  f"{snippet[:280]}")
-
-            matches += 1
-            if matches >= 8:
-                break
+        for keyword in (
+            "openvpnBundleUrl",
+            "/api/openvpn",
+            "URLSearchParams",
+        ):
+            pos = js.find(keyword)
+            if pos != -1:
+                snippet = js[max(0, pos - 350):pos + 700]
+                print(f"\n--- JS CONTEXT: {keyword} ---")
+                print(" ".join(snippet.split())[:1000])
 
     return " ".join(parser.text_parts), parser.links
+
 
 
 
