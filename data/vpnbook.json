@@ -1,0 +1,200 @@
+{
+  "provider": "vpnbook",
+  "source": "https://www.vpnbook.com/freevpn/openvpn",
+  "updated_at": "2026-11-01T03:09:06.092214+00:00",
+  "username": "vpnbook",
+  "server_count": 10,
+  "profile_count": 40,
+  "servers": [
+    {
+      "id": "ca149",
+      "provider": "vpnbook",
+      "hostname": "ca149.vpnbook.com",
+      "country": "Canada",
+      "country_code": "CA",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "ca149-tcp443.ovpn",
+        "ca149-tcp80.ovpn",
+        "ca149-udp53.ovpn",
+        "ca149-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "ca196",
+      "provider": "vpnbook",
+      "hostname": "ca196.vpnbook.com",
+      "country": "Canada",
+      "country_code": "CA",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "ca196-tcp443.ovpn",
+        "ca196-tcp80.ovpn",
+        "ca196-udp53.ovpn",
+        "ca196-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "de20",
+      "provider": "vpnbook",
+      "hostname": "de20.vpnbook.com",
+      "country": "Germany",
+      "country_code": "DE",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "de20-tcp443.ovpn",
+        "de20-tcp80.ovpn",
+        "de20-udp53.ovpn",
+        "de20-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "de220",
+      "provider": "vpnbook",
+      "hostname": "de220.vpnbook.com",
+      "country": "Germany",
+      "country_code": "DE",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "de220-tcp443.ovpn",
+        "de220-tcp80.ovpn",
+        "de220-udp53.ovpn",
+        "de220-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "fr200",
+      "provider": "vpnbook",
+      "hostname": "fr200.vpnbook.com",
+      "country": "France",
+      "country_code": "FR",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "fr200-tcp443.ovpn",
+        "fr200-tcp80.ovpn",
+        "fr200-udp53.ovpn",
+        "fr200-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "fr231",
+      "provider": "vpnbook",
+      "hostname": "fr231.vpnbook.com",
+      "country": "France",
+      "country_code": "FR",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "fr231-tcp443.ovpn",
+        "fr231-tcp80.ovpn",
+        "fr231-udp53.ovpn",
+        "fr231-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "uk205",
+      "provider": "vpnbook",
+      "hostname": "uk205.vpnbook.com",
+      "country": "United Kingdom",
+      "country_code": "UK",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "uk205-tcp443.ovpn",
+        "uk205-tcp80.ovpn",
+        "uk205-udp53.ovpn",
+        "uk205-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "uk68",
+      "provider": "vpnbook",
+      "hostname": "uk68.vpnbook.com",
+      "country": "United Kingdom",
+      "country_code": "UK",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "uk68-tcp443.ovpn",
+        "uk68-tcp80.ovpn",
+        "uk68-udp53.ovpn",
+        "uk68-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "us16",
+      "provider": "vpnbook",
+      "hostname": "us16.vpnbook.com",
+      "country": "United States",
+      "country_code": "US",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "us16-tcp443.ovpn",
+        "us16-tcp80.ovpn",
+        "us16-udp53.ovpn",
+        "us16-udp25000.ovpn"
+      ]
+    },
+    {
+      "id": "us178",
+      "provider": "vpnbook",
+      "hostname": "us178.vpnbook.com",
+      "country": "United States",
+      "country_code": "US",
+      "protocols": [
+        "tcp443",
+        "tcp80",
+        "udp53",
+        "udp25000"
+      ],
+      "profiles": [
+        "us178-tcp443.ovpn",
+        "us178-tcp80.ovpn",
+        "us178-udp53.ovpn",
+        "us178-udp25000.ovpn"
+      ]
+    }
+  ]
+}
